@@ -247,7 +247,6 @@ def extract_document_end_date_and_add_metrics(soup,stock_dict,context_dict,tags_
     
 
 
-
 def fill_QTD_drop_YTD(df):
     
     drop_YTD_list = []
