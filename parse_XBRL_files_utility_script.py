@@ -50,7 +50,7 @@ def create_soup_object(dirname,filename):
     return soup
 
         
-def add_metrics(soup,stock_dict,context_dict,tags_by_statement_dict,document_end_date):
+def add_metrics(soup,stock_dict,context_dict,tags_by_statement_dict,document_end_date,instance_filepath):
 
     stock_dict[document_end_date] = dict()
     
@@ -70,10 +70,10 @@ def add_metrics(soup,stock_dict,context_dict,tags_by_statement_dict,document_end
                 if ('segment' not in context_dict[contextref]): #checking it's not a revenue segment and just for one quarter           
 
                     if 'enddate' in context_dict[contextref]: 
-                        stock_dict = add_duration_metric(context_dict,contextref,stock_dict,tags_by_statement_dict,tag,document_end_date,statement)
+                        stock_dict = add_duration_metric(context_dict,contextref,stock_dict,tags_by_statement_dict,tag,document_end_date,statement,instance_filepath)
                         
                     elif 'instant' in context_dict[contextref]: #balance sheet item
-                        stock_dict= add_instance_metric(context_dict,contextref,stock_dict,tags_by_statement_dict,tag,document_end_date,statement)
+                        stock_dict= add_instance_metric(context_dict,contextref,stock_dict,tags_by_statement_dict,tag,document_end_date,statement,instance_filepath)
     
     return stock_dict
 
@@ -103,7 +103,7 @@ def create_dict_if_new_key(s_key,s_dict):
         s_dict[s_key] = dict()
     return s_dict
 
-def add_duration_metric(context_dict,contextref,stock_dict,tags_by_statement_dict,tag,document_end_date,statement):
+def add_duration_metric(context_dict,contextref,stock_dict,tags_by_statement_dict,tag,document_end_date,statement,instance_filepath):
     enddate = context_dict[contextref]['enddate']
     startdate = context_dict[contextref]['startdate']
 
@@ -122,13 +122,17 @@ def add_duration_metric(context_dict,contextref,stock_dict,tags_by_statement_dic
     stock_dict[document_end_date][statement][tag_name_str][enddate][freq]['value'] = tag.get_text()
     stock_dict[document_end_date][statement][tag_name_str][enddate][freq]['statedate'] = startdate 
 
-    stock_dict[document_end_date][statement][tag_name_str][enddate][freq]['label'] = tags_by_statement_dict[statement][tag_name_str]['label']
     stock_dict[document_end_date][statement][tag_name_str][enddate][freq]['order'] = tags_by_statement_dict[statement][tag_name_str]['order']
     stock_dict[document_end_date][statement][tag_name_str][enddate][freq]['link_from'] = tags_by_statement_dict[statement][tag_name_str]['link_from']
+
+    try:
+        stock_dict[document_end_date][statement][tag_name_str][enddate][freq]['label'] = tags_by_statement_dict[statement][tag_name_str]['label']
+    except:
+        print(f"Error finding label for {tag_name_str} on {enddate} in {instance_filepath} ")
     
     return stock_dict
     
-def add_instance_metric(context_dict,contextref,stock_dict,tags_by_statement_dict,tag,document_end_date,statement):
+def add_instance_metric(context_dict,contextref,stock_dict,tags_by_statement_dict,tag,document_end_date,statement,instance_filepath):
     instant = context_dict[contextref]['instant']
 
     tag_name_str = convert_tag_name_str(tag.name)
@@ -139,9 +143,13 @@ def add_instance_metric(context_dict,contextref,stock_dict,tags_by_statement_dic
 
     stock_dict[document_end_date][statement][tag_name_str][instant]['value'] = tag.get_text()
 
-    stock_dict[document_end_date][statement][tag_name_str][instant]['label'] = tags_by_statement_dict[statement][tag_name_str]['label']
     stock_dict[document_end_date][statement][tag_name_str][instant]['order'] = tags_by_statement_dict[statement][tag_name_str]['order']
     stock_dict[document_end_date][statement][tag_name_str][instant]['link_from'] = tags_by_statement_dict[statement][tag_name_str]['link_from']
+
+    try:
+        stock_dict[document_end_date][statement][tag_name_str][instant]['label'] = tags_by_statement_dict[statement][tag_name_str]['label']
+    except:
+        print(f"Error finding label for {tag_name_str} on {instant} in {instance_filepath} ")
 
     return stock_dict
 
@@ -241,7 +249,7 @@ def extract_document_end_date_and_add_metrics(soup,stock_dict,context_dict,tags_
         print('dei:documentperiodenddate not found in {}'.format(instance_filepath))
               
     if document_end_date is not None:
-        stock_dict = add_metrics(soup,stock_dict,context_dict,tags_by_statement_dict,document_end_date)    
+        stock_dict = add_metrics(soup,stock_dict,context_dict,tags_by_statement_dict,document_end_date,instance_filepath)    
                   
     return stock_dict
     
