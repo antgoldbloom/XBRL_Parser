@@ -52,8 +52,6 @@ def create_soup_object(dirname,filename):
         
 def add_metrics(soup,stock_dict,context_dict,tags_by_statement_dict,document_end_date,instance_filepath):
 
-    stock_dict[document_end_date] = dict()
-    
     metric_list = extract_metric_list(tags_by_statement_dict)
     
     tag_list = soup.find_all()
@@ -64,7 +62,7 @@ def add_metrics(soup,stock_dict,context_dict,tags_by_statement_dict,document_end
 
             if (statement is not None) & (tag.has_attr('contextref')) & (tag.get_text().isnumeric() ): #file size becomes huge if you include non-numeric data
 
-                stock_dict[document_end_date] = create_dict_if_new_key(statement,stock_dict[document_end_date])
+                stock_dict = create_dict_if_new_key(statement, stock_dict)
 
                 contextref = tag['contextref']
                 if ('segment' not in context_dict[contextref]): #checking it's not a revenue segment and just for one quarter           
@@ -109,24 +107,24 @@ def add_duration_metric(context_dict,contextref,stock_dict,tags_by_statement_dic
 
     tag_name_str = convert_tag_name_str(tag.name)
 
-    stock_dict[document_end_date][statement] = create_dict_if_new_key(tag_name_str,stock_dict[document_end_date][statement])
-    stock_dict[document_end_date][statement][tag_name_str] = create_dict_if_new_key(enddate,stock_dict[document_end_date][statement][tag_name_str])
+    stock_dict[statement] = create_dict_if_new_key(tag_name_str, stock_dict[statement])
+    stock_dict[statement][tag_name_str] = create_dict_if_new_key(enddate, stock_dict[statement][tag_name_str])
 
     if days_between(startdate,enddate) < 95:
         freq = 'QTD'
     else:
         freq = 'YTD'
 
-    stock_dict[document_end_date][statement][tag_name_str][enddate] = create_dict_if_new_key(freq,stock_dict[document_end_date][statement][tag_name_str][enddate])
+    stock_dict[statement][tag_name_str][enddate] = create_dict_if_new_key(freq, stock_dict[statement][tag_name_str][enddate])
 
-    stock_dict[document_end_date][statement][tag_name_str][enddate][freq]['value'] = tag.get_text()
-    stock_dict[document_end_date][statement][tag_name_str][enddate][freq]['statedate'] = startdate 
+    stock_dict[statement][tag_name_str][enddate][freq]['value'] = tag.get_text()
+    stock_dict[statement][tag_name_str][enddate][freq]['statedate'] = startdate 
 
-    stock_dict[document_end_date][statement][tag_name_str][enddate][freq]['order'] = tags_by_statement_dict[statement][tag_name_str]['order']
-    stock_dict[document_end_date][statement][tag_name_str][enddate][freq]['link_from'] = tags_by_statement_dict[statement][tag_name_str]['link_from']
+    stock_dict[statement][tag_name_str][enddate][freq]['order'] = tags_by_statement_dict[statement][tag_name_str]['order']
+    stock_dict[statement][tag_name_str][enddate][freq]['link_from'] = tags_by_statement_dict[statement][tag_name_str]['link_from']
 
     try:
-        stock_dict[document_end_date][statement][tag_name_str][enddate][freq]['label'] = tags_by_statement_dict[statement][tag_name_str]['label']
+        stock_dict[statement][tag_name_str][enddate][freq]['label'] = tags_by_statement_dict[statement][tag_name_str]['label']
     except:
         print(f"Error finding label for {tag_name_str} on {enddate} in {instance_filepath} ")
     
@@ -138,16 +136,16 @@ def add_instance_metric(context_dict,contextref,stock_dict,tags_by_statement_dic
     tag_name_str = convert_tag_name_str(tag.name)
 
 
-    stock_dict[document_end_date][statement] = create_dict_if_new_key(tag_name_str,stock_dict[document_end_date][statement])
-    stock_dict[document_end_date][statement][tag_name_str] = create_dict_if_new_key(instant,stock_dict[document_end_date][statement][tag_name_str])
+    stock_dict[statement] = create_dict_if_new_key(tag_name_str, stock_dict[statement])
+    stock_dict[statement][tag_name_str] = create_dict_if_new_key(instant, stock_dict[statement][tag_name_str])
 
-    stock_dict[document_end_date][statement][tag_name_str][instant]['value'] = tag.get_text()
+    stock_dict[statement][tag_name_str][instant]['value'] = tag.get_text()
 
-    stock_dict[document_end_date][statement][tag_name_str][instant]['order'] = tags_by_statement_dict[statement][tag_name_str]['order']
-    stock_dict[document_end_date][statement][tag_name_str][instant]['link_from'] = tags_by_statement_dict[statement][tag_name_str]['link_from']
+    stock_dict[statement][tag_name_str][instant]['order'] = tags_by_statement_dict[statement][tag_name_str]['order']
+    stock_dict[statement][tag_name_str][instant]['link_from'] = tags_by_statement_dict[statement][tag_name_str]['link_from']
 
     try:
-        stock_dict[document_end_date][statement][tag_name_str][instant]['label'] = tags_by_statement_dict[statement][tag_name_str]['label']
+        stock_dict[statement][tag_name_str][instant]['label'] = tags_by_statement_dict[statement][tag_name_str]['label']
     except:
         print(f"Error finding label for {tag_name_str} on {instant} in {instance_filepath} ")
 
