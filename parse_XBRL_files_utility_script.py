@@ -15,6 +15,8 @@ import sys
 
 import shutil
 
+from time import time
+
 import os
 
 from datetime import datetime, timedelta
@@ -36,120 +38,85 @@ def create_stock_dict(ticker,file_directory):
             elif (filename[-3:] == 'xml'):
                 soup_dict['instance'] = create_soup_object(dirname,filename) 
                 instance_filepath = os.path.join(dirname,filename)
+            elif (filename[-3:] == 'xsd'):
+                soup_dict['xsd'] = create_soup_object(dirname,filename) 
 
-        if soup_dict.keys() >= {"lab", "pre","instance"}:
+
+        if soup_dict.keys() >= {"lab", "pre","instance","xsd"}:
             stock_dict = add_to_stock_dict(stock_dict,soup_dict,instance_filepath)
     
     return stock_dict
     
 
-def create_soup_object(dirname,filename):
-    with open(os.path.join(dirname, filename), "r") as f:
-        contents = f.read()
-        soup = BeautifulSoup(contents, 'lxml')
-    return soup
 
-        
-def add_metrics(soup,stock_dict,context_dict,tags_by_statement_dict,document_end_date,instance_filepath):
-
-    metric_list = extract_metric_list(tags_by_statement_dict)
+def add_metrics(soup,stock_dict_with_ded,context_dict,metric_list):
     
     tag_list = soup.find_all()
     for tag in tag_list:
         tag_name_str = convert_tag_name_str(tag.name)
         if tag_name_str in metric_list:
-            statement = extract_statement_from_metric(tag_name_str,tags_by_statement_dict) 
-
+            statement = extract_statement_from_metric(tag_name_str,stock_dict_with_ded) 
             if (statement is not None) & (tag.has_attr('contextref')) & (tag.get_text().isnumeric() ): #file size becomes huge if you include non-numeric data
-
-                stock_dict = create_dict_if_new_key(statement, stock_dict)
-
                 contextref = tag['contextref']
                 if ('segment' not in context_dict[contextref]): #checking it's not a revenue segment and just for one quarter           
 
                     if 'enddate' in context_dict[contextref]: 
-                        stock_dict = add_duration_metric(context_dict,contextref,stock_dict,tags_by_statement_dict,tag,document_end_date,statement,instance_filepath)
-                        
+                        stock_dict_with_ded= add_duration_metric(context_dict,contextref,stock_dict_with_ded,tag,statement)
+                    
                     elif 'instant' in context_dict[contextref]: #balance sheet item
-                        stock_dict= add_instance_metric(context_dict,contextref,stock_dict,tags_by_statement_dict,tag,document_end_date,statement,instance_filepath)
+                        stock_dict_with_ded= add_instance_metric(context_dict,contextref,stock_dict_with_ded,tag,statement)
     
-    return stock_dict
+    return stock_dict_with_ded 
 
 
-def extract_statement_from_metric(chosen_metric,tags_by_statement_dict):
-    for statement in tags_by_statement_dict:
-        for metric in tags_by_statement_dict[statement]:
+def extract_statement_from_metric(chosen_metric,stock_list_with_ded):
+    for statement in stock_list_with_ded:
+        for metric in stock_list_with_ded[statement]['metrics']:
             if metric.lower() == chosen_metric:
                 return statement
 
     return None
 
 
-def extract_metric_list(tags_by_statement_dict):
+def extract_metric_list(stock_dict_with_ded):
     metric_list = []
-    for statement in tags_by_statement_dict:
-        for metric in tags_by_statement_dict[statement]:
+    for statement in stock_dict_with_ded:
+        for metric in stock_dict_with_ded[statement]['metrics']:
             metric_list.append(metric.lower())
 
     return metric_list
 
-def convert_tag_name_str(tag_name):
-    return tag_name.replace(':','_')
-
-def create_dict_if_new_key(s_key,s_dict):
-    if s_key not in s_dict:
-        s_dict[s_key] = dict()
-    return s_dict
-
-def add_duration_metric(context_dict,contextref,stock_dict,tags_by_statement_dict,tag,document_end_date,statement,instance_filepath):
+def add_duration_metric(context_dict,contextref,stock_dict_with_ded,tag,statement):
     enddate = context_dict[contextref]['enddate']
     startdate = context_dict[contextref]['startdate']
 
-    tag_name_str = convert_tag_name_str(tag.name)
+    freq = "" 
+    if days_between(startdate,enddate) > 94: #slightly nervous about assuming variables are either QTD or YTD. Has been empircally true for every company I've looked at so far though 
+        freq = '_YTD'
 
-    stock_dict[statement] = create_dict_if_new_key(tag_name_str, stock_dict[statement])
-    stock_dict[statement][tag_name_str] = create_dict_if_new_key(enddate, stock_dict[statement][tag_name_str])
+    tag_name_str = convert_tag_name_str(tag.name) + freq
 
-    if days_between(startdate,enddate) < 95:
-        freq = 'QTD'
-    else:
-        freq = 'YTD'
+    #need these statements because of freq
+    stock_dict_with_ded[statement] = create_dict_if_new_key('metrics', stock_dict_with_ded[statement])
+    stock_dict_with_ded[statement]['metrics'] = create_dict_if_new_key(tag_name_str, stock_dict_with_ded[statement]['metrics'])
 
-    stock_dict[statement][tag_name_str][enddate] = create_dict_if_new_key(freq, stock_dict[statement][tag_name_str][enddate])
+    stock_dict_with_ded[statement]['metrics'][tag_name_str] = create_dict_if_new_key('value', stock_dict_with_ded[statement]['metrics'][tag_name_str])
+    stock_dict_with_ded[statement]['metrics'][tag_name_str]['value'] = create_dict_if_new_key(enddate, stock_dict_with_ded[statement]['metrics'][tag_name_str]['value'])
+    stock_dict_with_ded[statement]['metrics'][tag_name_str]['value'][enddate] = tag.get_text()
 
-    stock_dict[statement][tag_name_str][enddate][freq]['value'] = tag.get_text()
-    stock_dict[statement][tag_name_str][enddate][freq]['statedate'] = startdate 
+    return stock_dict_with_ded
 
-    stock_dict[statement][tag_name_str][enddate][freq]['order'] = tags_by_statement_dict[statement][tag_name_str]['order']
-    stock_dict[statement][tag_name_str][enddate][freq]['link_from'] = tags_by_statement_dict[statement][tag_name_str]['link_from']
-
-    try:
-        stock_dict[statement][tag_name_str][enddate][freq]['label'] = tags_by_statement_dict[statement][tag_name_str]['label']
-    except:
-        print(f"Error finding label for {tag_name_str} on {enddate} in {instance_filepath} ")
     
-    return stock_dict
-    
-def add_instance_metric(context_dict,contextref,stock_dict,tags_by_statement_dict,tag,document_end_date,statement,instance_filepath):
+def add_instance_metric(context_dict,contextref,stock_dict_with_ded,tag,statement):
     instant = context_dict[contextref]['instant']
 
     tag_name_str = convert_tag_name_str(tag.name)
 
+    stock_dict_with_ded[statement]['metrics'][tag_name_str] = create_dict_if_new_key('value', stock_dict_with_ded[statement]['metrics'][tag_name_str])
+    stock_dict_with_ded[statement]['metrics'][tag_name_str]['value'] = create_dict_if_new_key(instant, stock_dict_with_ded[statement]['metrics'][tag_name_str]['value'])
+    stock_dict_with_ded[statement]['metrics'][tag_name_str]['value'][instant] = tag.get_text()
 
-    stock_dict[statement] = create_dict_if_new_key(tag_name_str, stock_dict[statement])
-    stock_dict[statement][tag_name_str] = create_dict_if_new_key(instant, stock_dict[statement][tag_name_str])
-
-    stock_dict[statement][tag_name_str][instant]['value'] = tag.get_text()
-
-    stock_dict[statement][tag_name_str][instant]['order'] = tags_by_statement_dict[statement][tag_name_str]['order']
-    stock_dict[statement][tag_name_str][instant]['link_from'] = tags_by_statement_dict[statement][tag_name_str]['link_from']
-
-    try:
-        stock_dict[statement][tag_name_str][instant]['label'] = tags_by_statement_dict[statement][tag_name_str]['label']
-    except:
-        print(f"Error finding label for {tag_name_str} on {instant} in {instance_filepath} ")
-
-    return stock_dict
+    return stock_dict_with_ded
 
 
 def days_between(d1, d2):
@@ -158,42 +125,129 @@ def days_between(d1, d2):
     return abs((d2 - d1).days)
 
     
-def parse_pre_xml(soup_pre,tags_by_statement_dict):
+def parse_pre_xml(soup_pre,stock_dict_with_ded):
 
     for statement_tag in soup_pre.find_all(['link:presentationlink','presentationlink']):
         statement_role_str = re.search('/role/[A-Za-z]+',statement_tag['xlink:role'])
         if statement_role_str is not None:
             statement_name = statement_role_str.group(0)[6:]
-            tags_by_statement_dict[statement_name] = dict()
+            stock_dict_with_ded[statement_name] = dict()
+            stock_dict_with_ded[statement_name]['metrics'] = dict()
+            pre_arc_dict = dict() #creating a dict for the presentation tags to store order and xlink from
             for metric_tag in statement_tag:
                 if isinstance(metric_tag, Tag): #prevents pulling Navigatable String
-                    if metric_tag.name in ['link:presentationarc','presentationarc']:
-                        metric = metric_tag['xlink:to'].lower()
-                        tags_by_statement_dict[statement_name][metric] = dict()
-                        tags_by_statement_dict[statement_name][metric]['order'] = metric_tag['order']
-                        tags_by_statement_dict[statement_name][metric]['link_from'] = metric_tag['xlink:from'].lower()
+                    if metric_tag.name in ['link:loc','loc']:
+                        stock_dict_with_ded = parse_pre_loc_xml(metric_tag,stock_dict_with_ded,statement_name)
+                    if metric_tag.name in ['link:presentationarc','presentationarc']: 
+                        pre_arc_dict = extra_pre_arc_xml(metric_tag,pre_arc_dict) 
+            for metric in stock_dict_with_ded[statement_name]['metrics']:
+                loc_xlink_label = stock_dict_with_ded[statement_name]['metrics'][metric]['prearc_xlink:to'] 
+                if loc_xlink_label in pre_arc_dict: 
+                    stock_dict_with_ded[statement_name]['metrics'][metric]['prearc_order'] = pre_arc_dict[loc_xlink_label]['prearc_order']
+                    stock_dict_with_ded[statement_name]['metrics'][metric]['prearc_xlink:from'] = pre_arc_dict[loc_xlink_label]['prearc_xlink:from']
 
-    return tags_by_statement_dict
+    return stock_dict_with_ded
                         
 
-def parse_lab_xml(soup_lab,tags_by_statement_dict):
-    for label_tag in soup_lab.find_all(['link:label','label']):
-        for statement_name in tags_by_statement_dict:
-            metric = label_tag['xlink:label'][:-4].lower()
-            if metric in tags_by_statement_dict[statement_name]:
-                tags_by_statement_dict[statement_name][metric]['label'] = label_tag.text
+def parse_pre_loc_xml(metric_tag,stock_dict_with_ded,statement_name):
+    metric_str = metric_tag['xlink:href']
+    metric = metric_str[metric_str.find('#')+1:].lower()
+    stock_dict_with_ded[statement_name]['metrics'][metric] = dict()
+    stock_dict_with_ded[statement_name]['metrics'][metric]['prearc_xlink:to'] = metric_tag['xlink:label'].lower()
+    return stock_dict_with_ded 
 
-    return tags_by_statement_dict
+def extra_pre_arc_xml(metric_tag,pre_arc_dict): 
+    xlink_to = metric_tag['xlink:to'].lower() 
+    pre_arc_dict[xlink_to] = dict() 
+    pre_arc_dict[xlink_to]['prearc_xlink:from'] = metric_tag['xlink:from'].lower() 
+    pre_arc_dict[xlink_to]['prearc_order'] = metric_tag['order'].lower() 
+    return pre_arc_dict
+
+
+def parse_lab_xml(soup_lab,stock_dict_with_ded,metric_list):
+    
+    
+
+    tag_list = soup_lab.find_all()
+
+    lab_loc_arc_dict = dict()
+    labelarc_dict = dict() 
+    linklabel_dict = dict() 
+
+    for tag in tag_list:
+
+        if tag.name in ['link:loc','loc']:
+            metric_str = tag['xlink:href']
+            metric = metric_str[metric_str.find('#')+1:].lower()
+
+            if metric in metric_list:
+                statement_name = extract_statement_from_metric(metric,stock_dict_with_ded) #INVESIGATE does the same metric show up in multiple statements?
+                
+                if statement_name is not None:
+                    lab_loc_arc_dict = create_dict_if_new_key(statement_name,lab_loc_arc_dict)
+                    lab_loc_arc_dict[statement_name][metric] = tag['xlink:label']  
+
+        elif tag.name in ['link:labelarc','labelarc']:
+#            if tag['xlink:from'] == 'loc_us-gaap_StatementOfFinancialPositionAbstract_D8B71A20A71BCC3CB4D050307C091C11':
+#                print('here')
+            labelarc_dict[tag['xlink:from']] = tag['xlink:to'] 
+        elif tag.name in ['link:label','label']:
+            linklabel_dict[tag['xlink:label']] = tag.get_text()  
+
+    stock_dict_with_ded = add_lab_to_stock_dict(lab_loc_arc_dict,labelarc_dict,linklabel_dict,stock_dict_with_ded)
+
+    return stock_dict_with_ded 
                         
 
+def add_lab_to_stock_dict(lab_loc_arc_dict,labelarc_dict,linklabel_dict,stock_dict_with_ded):
+    for statement_name in lab_loc_arc_dict:
+        for metric in lab_loc_arc_dict[statement_name]:
+            try:
+                tmp_labelarc_xlink_to = labelarc_dict[lab_loc_arc_dict[statement_name][metric]] 
+                stock_dict_with_ded[statement_name]['metrics'][metric]['label'] = linklabel_dict[tmp_labelarc_xlink_to] 
+            except KeyError as err:
+                print(f"Couldn't add label: {err}")
+    return stock_dict_with_ded
 
 def add_to_stock_dict(stock_dict,soup_dict,instance_filepath):
-    
-    context_dict = do_context_mapping(soup_dict['instance'])
-    tags_by_statement_dict = extract_tag_dict(soup_dict['pre'],soup_dict['lab'])
-    stock_dict = extract_document_end_date_and_add_metrics(soup_dict['instance'],stock_dict,context_dict,tags_by_statement_dict,instance_filepath)
+
+    document_end_date = None 
+    try:
+        document_end_date = soup_dict['instance'].find('dei:documentperiodenddate').get_text()
+    except: 
+        print('dei:documentperiodenddate not found in {}'.format(instance_filepath))
+              
+    if document_end_date is not None:
+
+        stock_dict[document_end_date] = dict()
+
+        #Add from Presentation file
+        stock_dict[document_end_date] = parse_pre_xml(soup_dict['pre'],stock_dict[document_end_date])
+
+        #this metric list is used in pre_lab_xml and add_metrics
+        metric_list = extract_metric_list(stock_dict[document_end_date]) 
+
+        #Add from label file
+        stock_dict[document_end_date] = parse_lab_xml(soup_dict['lab'],stock_dict[document_end_date],metric_list)
+
+        #Add from XSD file
+        stock_dict[document_end_date] = parse_xsd(soup_dict['xsd'],stock_dict[document_end_date],document_end_date)
+
+        #Add from instance file
+        context_dict = do_context_mapping(soup_dict['instance'])
+        stock_dict[document_end_date] = add_metrics(soup_dict['instance'],stock_dict[document_end_date],context_dict,metric_list)    
             
     return stock_dict
+    
+def parse_xsd(soup_xsd,stock_dict_with_ded,document_end_date):
+
+    for statement_tag in soup_xsd.find_all(['link:roletype','roletype']):
+        for statement_sub_tag in statement_tag:
+            if statement_sub_tag.name in ['link:definition','definition']: 
+                if statement_tag['id'] in stock_dict_with_ded:
+                    stock_dict_with_ded[statement_tag['id']]['statement_name'] = statement_sub_tag.get_text() 
+
+    return stock_dict_with_ded
 
 def do_context_mapping(soup):
 
@@ -215,14 +269,6 @@ def do_context_mapping(soup):
     return context_dict
     
 
-def extract_tag_dict(soup_pre,soup_lab):
-
-    tags_by_statement_dict = dict()
-    tags_by_statement_dict = parse_pre_xml(soup_pre,tags_by_statement_dict)
-    tags_by_statement_dict = parse_lab_xml(soup_lab,tags_by_statement_dict)
-
-    return tags_by_statement_dict
-    
 
 def extract_gap_tag_list(soup):
 
@@ -236,69 +282,30 @@ def extract_gap_tag_list(soup):
     return tags_by_statement_dict   
 
 
-def extract_document_end_date_and_add_metrics(soup,stock_dict,context_dict,tags_by_statement_dict,instance_filepath):
 
-    document_end_date = None 
-    
-    try:
-        document_end_date = soup.find('dei:documentperiodenddate').get_text()
-        
-    except: 
-        print('dei:documentperiodenddate not found in {}'.format(instance_filepath))
-              
-    if document_end_date is not None:
-        stock_dict = add_metrics(soup,stock_dict,context_dict,tags_by_statement_dict,document_end_date,instance_filepath)    
+
                   
-    return stock_dict
     
 
 
-def fill_QTD_drop_YTD(df):
-    
-    drop_YTD_list = []
-
-    for column in df.columns:
-        if (re.match('.+_QTD$',column)) and ('{}_YTD'.format(column[:-4]) in df.columns):
-            drop_YTD_list.append('{}_YTD'.format(column[:-4]))
-
-            for index in df[df[column].isna() & df['{}_YTD'.format(column[:-4])].notna()][[column,'{}_YTD'.format(column[:-4])]].index:
-                df_tmp = df[df.index < index].tail(3)
-                if (len(df_tmp[column].dropna()) == 3):
-
-                    df.loc[df.index == index,column] = pd.to_numeric(df[df.index == index]['{}_YTD'.format(column[:-4])]) - pd.to_numeric(df_tmp[column]).sum()
 
 
-    df = df.drop(columns=np.unique(drop_YTD_list))
+####UTILITY FUNCTIONS
 
-    return df
+def convert_str_name_tag(str_name):
+    return str_name.replace('_',':')
 
+def convert_tag_name_str(tag_name):
+    return tag_name.replace(':','_')
 
-def dict_to_dataframe(stock_dict):
+def create_dict_if_new_key(s_key,s_dict):
+    if s_key not in s_dict:
+        s_dict[s_key] = dict()
+    return s_dict
 
-    df = pd.DataFrame(index=stock_dict.keys())
-        
-    for enddate in stock_dict:
-        for metric in stock_dict[enddate]:
-            df.loc[df.index == enddate,metric] = stock_dict[enddate][metric]   
-    
-    df = df.sort_index(ascending=True)
-    
-    df = fill_QTD_drop_YTD(df)
-    
-    return df
-
-
-def create_stock_dataframe(ticker):
-
-        start = timeit.default_timer()        
-
-        stock_dict = create_stock_dict(ticker)
-        
-        df = dict_to_dataframe(stock_dict)
-        print('process: ', timeit.default_timer() - start)        
-        
-        return df
-
-
-
+def create_soup_object(dirname,filename):
+    with open(os.path.join(dirname, filename), "r") as f:
+        contents = f.read()
+        soup = BeautifulSoup(contents, 'lxml')
+    return soup
 
