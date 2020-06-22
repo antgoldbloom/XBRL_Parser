@@ -3,5 +3,8 @@
 		{
 			"path": "."
 		}
-	]
+	],
+	"settings": {
+		"python.pythonPath": "/Users/goldbloom/opt/anaconda3/bin/python"
+	}
 }
