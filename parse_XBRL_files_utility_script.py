@@ -63,27 +63,40 @@ def add_metrics(parsed_xml,stock_dict_with_ded,context_dict,metric_list,cal_dict
     for tag in parsed_xml.iter():
         tag_name_str = f"{tag.prefix}_{etree.QName(tag).localname}".lower()
 
-
         #DEBUG broken tags
         #if tag_name_str == "us-gaap_EarningsPerShareBasic".lower():
         #    print(tag_name_str)
 
-
         if tag_name_str in metric_list:
             statement_list = extract_statement_from_metric(tag_name_str,stock_dict_with_ded) 
             if (len(statement_list) > 0) & ('contextRef' in tag.attrib) & (tag.text is not None):
-            
                 if (re.match('^-?[0-9]+\.?[0-9]*$',tag.text) ): #testin for numbers. file size becomes huge if you include non-numeric data. lstrip to prevent return false for negative numbers
                     contextref = tag.attrib['contextRef']
-                    if ('segment' not in context_dict[contextref]): #checking it's not a revenue segment and just for one quarter           
+                
+                    tag_name_str = convert_tag_name_str(tag_name_str) 
+
+
+                    for statement in statement_list:
+                        stock_dict_with_ded[statement]['metrics'] = create_dict_if_new_key(tag_name_str, stock_dict_with_ded[statement]['metrics']) 
+
+                        hasSegment = False
+                        if ('segment' in context_dict[contextref]): #checking it's not a revenue segment and just for one quarter           
+                            if convert_tag_name_str(context_dict[contextref]['segment']).lower() in stock_dict_with_ded[statement]['metrics']:
+                                stock_dict_with_ded[statement]['metrics'][tag_name_str] = create_dict_if_new_key('segment', stock_dict_with_ded[statement]['metrics'][tag_name_str]) 
+                                stock_dict_with_ded[statement]['metrics'][tag_name_str]['segment'] = create_dict_if_new_key(context_dict[contextref]['segment'], stock_dict_with_ded[statement]['metrics'][tag_name_str]['segment']) 
+                                hasSegment = True 
 
                         if 'endDate' in context_dict[contextref]: 
-                            for statement in statement_list:
-                                stock_dict_with_ded= add_duration_metric(context_dict,contextref,stock_dict_with_ded,tag,tag_name_str,statement,cal_dict)
-                    
+                            if hasSegment:
+                                stock_dict_with_ded[statement]['metrics'][tag_name_str]['segment'][context_dict[contextref]['segment']] = add_duration_metric(stock_dict_with_ded[statement]['metrics'][tag_name_str]['segment'][context_dict[contextref]['segment']],context_dict,contextref,tag,tag_name_str,statement,cal_dict)
+                            else:
+                                stock_dict_with_ded[statement]['metrics'][tag_name_str] = add_duration_metric(stock_dict_with_ded[statement]['metrics'][tag_name_str],context_dict,contextref,tag,tag_name_str,statement,cal_dict)
+
                         elif 'instant' in context_dict[contextref]: #balance sheet item
-                            for statement in statement_list:
-                                stock_dict_with_ded= add_instance_metric(context_dict,contextref,stock_dict_with_ded,tag,tag_name_str,statement,cal_dict)
+                            if hasSegment:
+                                stock_dict_with_ded[statement]['metrics'][tag_name_str]['segment'][context_dict[contextref]['segment']] = add_value_to_metric(stock_dict_with_ded[statement]['metrics'][tag_name_str]['segment'][context_dict[contextref]['segment']],tag,context_dict[contextref]['instant'],cal_dict,tag_name_str,statement,'instant') 
+                            else:
+                                stock_dict_with_ded[statement]['metrics'][tag_name_str] = add_value_to_metric(stock_dict_with_ded[statement]['metrics'][tag_name_str],tag,context_dict[contextref]['instant'],cal_dict,tag_name_str,statement,'instant') 
     
     return stock_dict_with_ded 
 
@@ -107,23 +120,20 @@ def extract_metric_list(stock_dict_with_ded):
 
     return metric_list
 
-def add_duration_metric(context_dict,contextref,stock_dict_with_ded,tag,tag_name_str,statement,cal_dict):
+def add_duration_metric(stock_dict_excl_value_and_date,context_dict,contextref,tag,tag_name_str,statement,cal_dict):
     enddate = context_dict[contextref]['endDate']
     startdate = context_dict[contextref]['startDate']
 
-    freq = "" 
+    freq = "qtd" 
     if days_between(startdate,enddate) > 94: #slightly nervous about assuming variables are either QTD or YTD. Has been empircally true for every company I've looked at so far though 
-        freq = '_YTD'
-
-    tag_name_str = convert_tag_name_str(tag_name_str) + freq
+        freq = 'ytd'
 
     #need these statements because of freq
-    stock_dict_with_ded[statement] = create_dict_if_new_key('metrics', stock_dict_with_ded[statement])
-    stock_dict_with_ded[statement]['metrics'] = create_dict_if_new_key(tag_name_str, stock_dict_with_ded[statement]['metrics'])
+    #stock_dict_with_ded[statement] = create_dict_if_new_key('metrics', stock_dict_with_ded[statement])
+    #stock_dict_with_ded[statement]['metrics'] = create_dict_if_new_key(tag_name_str, stock_dict_with_ded[statement]['metrics'])
+    stock_dict_excl_value_and_date = add_value_to_metric(stock_dict_excl_value_and_date,tag,enddate,cal_dict,tag_name_str,statement,freq) 
 
-    stock_dict_with_ded[statement]['metrics'][tag_name_str] = add_value_to_metric(stock_dict_with_ded[statement]['metrics'][tag_name_str],tag,enddate,cal_dict,tag_name_str,statement) 
-
-    return stock_dict_with_ded
+    return stock_dict_excl_value_and_date 
 
 
 
@@ -131,26 +141,23 @@ def add_duration_metric(context_dict,contextref,stock_dict_with_ded,tag,tag_name
 def add_instance_metric(context_dict,contextref,stock_dict_with_ded,tag,tag_name_str,statement,cal_dict):
     instant = context_dict[contextref]['instant']
 
-    tag_name_str = convert_tag_name_str(tag_name_str)
-
-    stock_dict_with_ded[statement]['metrics'][tag_name_str] = add_value_to_metric(stock_dict_with_ded[statement]['metrics'][tag_name_str],tag,instant,cal_dict,tag_name_str,statement) 
+    stock_dict_with_ded[statement]['metrics'][tag_name_str] = add_value_to_metric(stock_dict_with_ded[statement]['metrics'][tag_name_str],tag,instant,cal_dict,tag_name_str,statement,'instant') 
 
     return stock_dict_with_ded
 
 
-def add_value_to_metric(stock_dict_excl_value_and_date,tag,obs_date,cal_dict,tag_name_str,statement):
-    stock_dict_excl_value_and_date = create_dict_if_new_key('value', stock_dict_excl_value_and_date)
-    stock_dict_excl_value_and_date['value'] = create_dict_if_new_key(obs_date, stock_dict_excl_value_and_date['value'])
+def add_value_to_metric(stock_dict_excl_value_and_date,tag,obs_date,cal_dict,tag_name_str,statement,freq):
+    stock_dict_excl_value_and_date = create_dict_if_new_key(freq, stock_dict_excl_value_and_date)
+    stock_dict_excl_value_and_date[freq] = create_dict_if_new_key(obs_date, stock_dict_excl_value_and_date[freq])
     try:
-        stock_dict_excl_value_and_date['value'][obs_date] = int(tag.text)
+        stock_dict_excl_value_and_date[freq][obs_date] = int(tag.text)
     except:
-        stock_dict_excl_value_and_date['value'][obs_date] = float(tag.text)
+        stock_dict_excl_value_and_date[freq][obs_date] = float(tag.text)
 
     #look at the sign of the metric
-    tag_name_str = tag_name_str.replace('_YTD','') #remove _YTD because that's not in the XBRL tags
     if statement in cal_dict: 
         if tag_name_str in cal_dict[statement]: 
-            stock_dict_excl_value_and_date['value'][obs_date] = stock_dict_excl_value_and_date['value'][obs_date] * cal_dict[statement][tag_name_str]
+            stock_dict_excl_value_and_date[freq][obs_date] = stock_dict_excl_value_and_date[freq][obs_date] * cal_dict[statement][tag_name_str]
 
     return stock_dict_excl_value_and_date
 
@@ -344,11 +351,15 @@ def do_context_mapping(parsed_xml):
         contextref_id = element.attrib['id']
         context_dict[contextref_id] = dict()
         for c in element.iter(): 
-        
-            context_tag_str = etree.QName(c).localname
-            if context_tag_str in ['startDate','endDate','segment','instant']:
-                context_dict[contextref_id][context_tag_str] = c.text 
 
+            context_tag_str = etree.QName(c).localname
+
+            if context_tag_str in ['segment']:
+                c_em = c.xpath("*[local-name()='explicitMember']")
+                if len(c_em) > 0:
+                    context_dict[contextref_id][context_tag_str] = c_em[0].text 
+            elif context_tag_str in ['startDate','endDate','instant']:
+                context_dict[contextref_id][context_tag_str] = c.text 
         
     return context_dict
     

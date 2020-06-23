@@ -26,6 +26,7 @@ for metric in stock_dict_with_ded[statement_name]['metrics']:
 
 
 def create_tmp_stock_dict(stock_dict_with_ded_statement_metric,metric):
+    dict_key_list = ['label','prearc_order', 'prearc_xlink:from','prearc_xlink:to','qtd']
     tmp_stock_dict = dict()
     tmp_stock_dict['metric'] = metric 
     for key in dict_key_list:
@@ -34,40 +35,55 @@ def create_tmp_stock_dict(stock_dict_with_ded_statement_metric,metric):
     return tmp_stock_dict
 
 
-dict_key_list = ['label','prearc_order', 'prearc_xlink:from','prearc_xlink:to','value']
+
+def add_to_stock_list_dict(stock_list_dict,metric,stock_dict_up_to_metrics,is_segment=False):
+    tmp_stock_dict_list = []
+    tmp_stock_dict = create_tmp_stock_dict(stock_dict_up_to_metrics[metric],metric)
+    tmp_stock_dict_list.append(tmp_stock_dict)
+
+
+    if not is_segment:
+
+        xlink_lower_metric = stock_dict_up_to_metrics[metric]['prearc_xlink:from']
+        xlink_lower_metric_match = None 
+
+        while (xlink_lower_metric_match not in top_level_xlink_from):
+            for metric_lower in stock_dict_up_to_metrics:  
+                xlink_lower_metric_match = stock_dict_up_to_metrics[metric_lower]['prearc_xlink:to'] 
+                if (xlink_lower_metric_match == xlink_lower_metric) and (xlink_lower_metric_match not in top_level_xlink_from):
+
+                    tmp_stock_dict = create_tmp_stock_dict(stock_dict_up_to_metrics[metric_lower],metric_lower)
+                    tmp_stock_dict_list.append(tmp_stock_dict)
+
+                    xlink_lower_metric = stock_dict_up_to_metrics[metric_lower]['prearc_xlink:from']
+
+                elif (xlink_lower_metric_match == xlink_lower_metric) and (xlink_lower_metric_match in top_level_xlink_from):
+                    
+                    tmp_stock_dict = create_tmp_stock_dict(stock_dict_up_to_metrics[metric_lower],metric_lower)
+                    tmp_stock_dict_list.append(tmp_stock_dict)
+
+                    stock_list_dict[metric] = tmp_stock_dict_list 
+                    break
+    else:
+        stock_list_dict[metric] = tmp_stock_dict_list 
+
+    return stock_list_dict
+
+
 stock_list_dict = dict()
 
 #pull out label chain for each numeric metric into dict
 for metric in stock_dict_with_ded[statement_name]['metrics']:
-    if 'value' in stock_dict_with_ded[statement_name]['metrics'][metric] and (metric[-4:] != '_YTD'): 
-
-        tmp_stock_dict_list = []
-        tmp_stock_dict = create_tmp_stock_dict(stock_dict_with_ded[statement_name]['metrics'][metric],metric)
-        tmp_stock_dict_list.append(tmp_stock_dict)
-
-        xlink_lower_metric = stock_dict_with_ded[statement_name]['metrics'][metric]['prearc_xlink:from']
-
-        xlink_lower_metric_match = None 
-
-        while (xlink_lower_metric_match not in top_level_xlink_from):
-            for metric_lower in stock_dict_with_ded[statement_name]['metrics']:  
-                if metric_lower[-4:] != '_YTD': #need this while I haven't addressed the YTD issue
-                    xlink_lower_metric_match = stock_dict_with_ded[statement_name]['metrics'][metric_lower]['prearc_xlink:to'] 
-                    if (xlink_lower_metric_match == xlink_lower_metric) and (xlink_lower_metric_match not in top_level_xlink_from):
-
-                        tmp_stock_dict = create_tmp_stock_dict(stock_dict_with_ded[statement_name]['metrics'][metric_lower],metric_lower)
-                        tmp_stock_dict_list.append(tmp_stock_dict)
-
-                        xlink_lower_metric = stock_dict_with_ded[statement_name]['metrics'][metric_lower]['prearc_xlink:from']
-
-                    elif (xlink_lower_metric_match == xlink_lower_metric) and (xlink_lower_metric_match in top_level_xlink_from):
-                        
-                        tmp_stock_dict = create_tmp_stock_dict(stock_dict_with_ded[statement_name]['metrics'][metric_lower],metric_lower)
-                        tmp_stock_dict_list.append(tmp_stock_dict)
-
-                        stock_list_dict[metric] = tmp_stock_dict_list 
-                        break
-
+    if 'qtd' in stock_dict_with_ded[statement_name]['metrics'][metric]: 
+        stock_list_dict = add_to_stock_list_dict(stock_list_dict,metric,stock_dict_with_ded[statement_name]['metrics'])
+    if 'segment' in stock_dict_with_ded[statement_name]['metrics'][metric]: 
+        for segment_metric in stock_dict_with_ded[statement_name]['metrics'][metric]['segment']:
+            if 'qtd' in stock_dict_with_ded[statement_name]['metrics'][metric]['segment'][segment_metric]: 
+                stock_list_dict = add_to_stock_list_dict(stock_list_dict,segment_metric,stock_dict_with_ded[statement_name]['metrics'][metric]['segment'],True) #order segments just below parent item
+                stock_list_dict[segment_metric][0]['prearc_order'] = int(stock_list_dict[metric][0]['prearc_order']) + 0.1
+                for i in range(1,len(stock_list_dict[segment_metric])):
+                    stock_list_dict[segment_metric][i]['prearc_order'] = stock_list_dict[metric][i]['prearc_order'] 
+                    
 
 
 
@@ -91,8 +107,8 @@ df_statement = pd.DataFrame(index=metric_list)
 
 
 for metric in stock_list_dict:
-    for metric_date in stock_list_dict[metric][0]['value']:
-        df_statement.loc[df_statement.index==metric,metric_date] =  stock_list_dict[metric][0]['value'][metric_date]
+    for metric_date in stock_list_dict[metric][0]['qtd']:
+        df_statement.loc[df_statement.index==metric,metric_date] =  stock_list_dict[metric][0]['qtd'][metric_date]
     
     
 df_statement = df_statement.iloc[:, ::-1]
