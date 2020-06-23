@@ -8,8 +8,9 @@ csv_path = '../data/csv/'
 
 ticker = 'AMZN'
 document_end_date = '2020-03-31'
-statement_name = 'ConsolidatedBalanceSheets'
-  
+statement_name = 'SegmentInformationReportableSegmentsAndReconciliationToConsolidatedNetIncomeDetails'
+statement_name = 'SegmentInformationDisaggregationOfRevenueDetails'
+ 
 
 
 with open(f"{json_path}{ticker}.json", 'r') as stock_json:

@@ -64,7 +64,7 @@ def add_metrics(parsed_xml,stock_dict_with_ded,context_dict,metric_list,cal_dict
         tag_name_str = f"{tag.prefix}_{etree.QName(tag).localname}".lower()
 
         #DEBUG broken tags
-        #if tag_name_str == "us-gaap_EarningsPerShareBasic".lower():
+        #if tag_name_str == "us-gaap_depreciationdepletionandamortization".lower():
         #    print(tag_name_str)
 
         if tag_name_str in metric_list:
@@ -73,18 +73,18 @@ def add_metrics(parsed_xml,stock_dict_with_ded,context_dict,metric_list,cal_dict
                 if (re.match('^-?[0-9]+\.?[0-9]*$',tag.text) ): #testin for numbers. file size becomes huge if you include non-numeric data. lstrip to prevent return false for negative numbers
                     contextref = tag.attrib['contextRef']
                 
-                    tag_name_str = convert_tag_name_str(tag_name_str) 
-
 
                     for statement in statement_list:
                         stock_dict_with_ded[statement]['metrics'] = create_dict_if_new_key(tag_name_str, stock_dict_with_ded[statement]['metrics']) 
 
                         hasSegment = False
                         if ('segment' in context_dict[contextref]): #checking it's not a revenue segment and just for one quarter           
-                            if convert_tag_name_str(context_dict[contextref]['segment']).lower() in stock_dict_with_ded[statement]['metrics']:
+                            if convert_tag_name_str(context_dict[contextref]['segment']).lower() in stock_dict_with_ded[statement]['metrics']: #checking if segment is in this statement
                                 stock_dict_with_ded[statement]['metrics'][tag_name_str] = create_dict_if_new_key('segment', stock_dict_with_ded[statement]['metrics'][tag_name_str]) 
                                 stock_dict_with_ded[statement]['metrics'][tag_name_str]['segment'] = create_dict_if_new_key(context_dict[contextref]['segment'], stock_dict_with_ded[statement]['metrics'][tag_name_str]['segment']) 
                                 hasSegment = True 
+                            else:
+                                break #if it isn't, don't add it
 
                         if 'endDate' in context_dict[contextref]: 
                             if hasSegment:
