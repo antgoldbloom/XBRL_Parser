@@ -8,7 +8,9 @@ csv_path = '../data/csv/'
 
 ticker = 'AMZN'
 document_end_date = '2020-03-31'
-statement_name = 'ConsolidatedStatementsOfOperations'
+statement_name = 'ConsolidatedBalanceSheets'
+  
+
 
 with open(f"{json_path}{ticker}.json", 'r') as stock_json:
     stock_dict = json.loads(stock_json.read())
@@ -26,7 +28,7 @@ for metric in stock_dict_with_ded[statement_name]['metrics']:
 
 
 def create_tmp_stock_dict(stock_dict_with_ded_statement_metric,metric):
-    dict_key_list = ['label','prearc_order', 'prearc_xlink:from','prearc_xlink:to','qtd']
+    dict_key_list = ['label','prearc_order', 'prearc_xlink:from','prearc_xlink:to','qtd','instant']
     tmp_stock_dict = dict()
     tmp_stock_dict['metric'] = metric 
     for key in dict_key_list:
@@ -74,11 +76,11 @@ stock_list_dict = dict()
 
 #pull out label chain for each numeric metric into dict
 for metric in stock_dict_with_ded[statement_name]['metrics']:
-    if 'qtd' in stock_dict_with_ded[statement_name]['metrics'][metric]: 
+    if ('qtd' in stock_dict_with_ded[statement_name]['metrics'][metric]) or ('instant' in stock_dict_with_ded[statement_name]['metrics'][metric]): 
         stock_list_dict = add_to_stock_list_dict(stock_list_dict,metric,stock_dict_with_ded[statement_name]['metrics'])
     if 'segment' in stock_dict_with_ded[statement_name]['metrics'][metric]: 
         for segment_metric in stock_dict_with_ded[statement_name]['metrics'][metric]['segment']:
-            if 'qtd' in stock_dict_with_ded[statement_name]['metrics'][metric]['segment'][segment_metric]: 
+            if ('qtd' in stock_dict_with_ded[statement_name]['metrics'][metric]['segment'][segment_metric]) or ('instant' in stock_dict_with_ded[statement_name]['metrics'][metric]['segment'][segment_metric]): 
                 stock_list_dict = add_to_stock_list_dict(stock_list_dict,segment_metric,stock_dict_with_ded[statement_name]['metrics'][metric]['segment'],True) #order segments just below parent item
                 stock_list_dict[segment_metric][0]['prearc_order'] = int(stock_list_dict[metric][0]['prearc_order']) + 0.1
                 for i in range(1,len(stock_list_dict[segment_metric])):
@@ -107,8 +109,14 @@ df_statement = pd.DataFrame(index=metric_list)
 
 
 for metric in stock_list_dict:
-    for metric_date in stock_list_dict[metric][0]['qtd']:
-        df_statement.loc[df_statement.index==metric,metric_date] =  stock_list_dict[metric][0]['qtd'][metric_date]
+    
+    if 'qtd' in stock_list_dict[metric][0]:
+        for metric_date in stock_list_dict[metric][0]['qtd']:
+            df_statement.loc[df_statement.index==metric,metric_date] =  stock_list_dict[metric][0]['qtd'][metric_date]
+    elif 'instant' in stock_list_dict[metric][0]:     
+        for metric_date in stock_list_dict[metric][0]['instant']:
+            df_statement.loc[df_statement.index==metric,metric_date] =  stock_list_dict[metric][0]['instant'][metric_date]
+
     
     
 df_statement = df_statement.iloc[:, ::-1]
