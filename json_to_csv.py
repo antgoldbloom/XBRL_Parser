@@ -6,10 +6,10 @@ import os
 json_path = '../data/json/'
 csv_path = '../data/csv/'
 
-ticker = 'AMZN'
+ticker = 'GOOG'
 document_end_date = '2020-03-31'
 statement_name = 'SegmentInformationReportableSegmentsAndReconciliationToConsolidatedNetIncomeDetails'
-statement_name = 'SegmentInformationDisaggregationOfRevenueDetails'
+#statement_name = 'SegmentInformationDisaggregationOfRevenueDetails'
  
 
 
@@ -39,7 +39,7 @@ def create_tmp_stock_dict(stock_dict_with_ded_statement_metric,metric):
 
 
 
-def add_to_stock_list_dict(stock_list_dict,metric,stock_dict_up_to_metrics,is_segment=False):
+def add_to_stock_list_dict(stock_list_dict,metric,stock_dict_up_to_metrics,is_segment=False,parent_metric=None):
     tmp_stock_dict_list = []
     tmp_stock_dict = create_tmp_stock_dict(stock_dict_up_to_metrics[metric],metric)
     tmp_stock_dict_list.append(tmp_stock_dict)
@@ -68,7 +68,7 @@ def add_to_stock_list_dict(stock_list_dict,metric,stock_dict_up_to_metrics,is_se
                     stock_list_dict[metric] = tmp_stock_dict_list 
                     break
     else:
-        stock_list_dict[metric] = tmp_stock_dict_list 
+        stock_list_dict[sld_index] = tmp_stock_dict_list 
 
     return stock_list_dict
 
@@ -82,10 +82,11 @@ for metric in stock_dict_with_ded[statement_name]['metrics']:
     if 'segment' in stock_dict_with_ded[statement_name]['metrics'][metric]: 
         for segment_metric in stock_dict_with_ded[statement_name]['metrics'][metric]['segment']:
             if ('qtd' in stock_dict_with_ded[statement_name]['metrics'][metric]['segment'][segment_metric]) or ('instant' in stock_dict_with_ded[statement_name]['metrics'][metric]['segment'][segment_metric]): 
-                stock_list_dict = add_to_stock_list_dict(stock_list_dict,segment_metric,stock_dict_with_ded[statement_name]['metrics'][metric]['segment'],True) #order segments just below parent item
-                stock_list_dict[segment_metric][0]['prearc_order'] = int(stock_list_dict[metric][0]['prearc_order']) + 0.1
-                for i in range(1,len(stock_list_dict[segment_metric])):
-                    stock_list_dict[segment_metric][i]['prearc_order'] = stock_list_dict[metric][i]['prearc_order'] 
+                sld_index = f"{metric}___{segment_metric}"
+                stock_list_dict = add_to_stock_list_dict(stock_list_dict,segment_metric,stock_dict_with_ded[statement_name]['metrics'][metric]['segment'],True,sld_index) #order segments just below parent item
+                stock_list_dict[sld_index][0]['prearc_order'] = int(stock_list_dict[metric][0]['prearc_order']) + 0.1
+                for i in range(1,len(stock_list_dict[sld_index])):
+                    stock_list_dict[sld_index][i]['prearc_order'] = stock_list_dict[metric][i]['prearc_order'] 
                     
 
 

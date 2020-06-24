@@ -21,46 +21,15 @@ filename['instance'] = 'amzn-20200331x10q_htm.xml'
 xml_file = os.path.join(filepath,filename['instance'])
 parsed_xml = etree.parse(xml_file)
 
-context_dict = dict()
-context = parsed_xml.xpath("//*[local-name()='context']")
+xpath_query_list = []
+parsed_xml = parsed_xml.getroot()
+for key in parsed_xml.nsmap:
+    if key not in [None,'dei','iso4217','link','srt','xbrldi','xlink','xsi']:
+        xpath_query_list.append(key)
 
-for element in context:
-    contextref_id = element.attrib['id']
-    context_dict[contextref_id] = dict()
-    for c in element.iter(): 
-    
-        context_tag_str = etree.QName(c).localname
-        if context_tag_str in ['segment']:
-            print(contextref_id)
-            c_em = c.xpath("*[name()='xbrldi:explicitMember']",namespaces=INSTANT_NAMESPACES)
-            if len(c_em) > 0:
-                context_dict[contextref_id][context_tag_str] = c_em[0].text 
-        elif context_tag_str in ['startDate','endDate','instant']:
-            context_dict[contextref_id][context_tag_str] = c.text 
+query_str = ('|'.join([f"{x}:*" for x in xpath_query_list]))
 
-        
-print(context_dict)
+ns_dict = parsed_xml.nsmap
+del(ns_dict[None])
 
-""" 
-loc_list = parsed_xml.xpath("//*[name()='link:loc']",namespaces=CALC_NAMESPACES)
-
-calc_dict = dict()
-
-for element in loc_list:
-
-    #metric_str = element.attrib['{http://www.w3.org/1999/xlink}href'] 
-    metric_href = element.xpath('@xlink:href',namespaces=CALC_NAMESPACES)[0]
-    metric = metric_href[metric_href.find('#')+1:].lower()
-
-    lab_str = element.xpath('@xlink:label',namespaces=CALC_NAMESPACES)[0] 
-
-    calculation_element = parsed_xml.xpath(f"//*[@xlink:to='{lab_str}']",namespaces=CALC_NAMESPACES) 
-    for ce in calculation_element: 
-        calculation_link_element = ce.getparent()
-        calculation_link_element_role = calculation_link_element.xpath("@xlink:role",namespaces=CALC_NAMESPACES)[0] 
-        statement_role_str = re.search('/role/[A-Za-z]+',calculation_link_element_role).group(0)[6:] 
-        if statement_role_str not in calc_dict:
-            calc_dict[statement_role_str] = dict()
-        calc_dict[statement_role_str][metric] = int(calculation_element[0].xpath('@weight')[0]) 
-
- """
+print(parsed_xml.xpath(f"//{query_str}",namespaces=ns_dict))

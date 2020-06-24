@@ -45,7 +45,7 @@ def create_stock_dict(ticker,file_directory):
         if parsed_xml_dict.keys() >= {"lab", "pre","instance","xsd","cal"}:
             stock_dict = add_to_stock_dict(stock_dict,parsed_xml_dict,instance_filepath)
         else:
-            print(f"Warning: missing XBRL file for {ticker} in {os.path.join(dirname,filename)}")
+            print(f"Warning: missing XBRL file for {ticker} in {dirname}")
     
     return stock_dict
     
@@ -57,42 +57,62 @@ def correct_truncated_tag_name(tag_name_str,metric_list):
                 tag_name_str = metric
     return tag_name_str
 
+
+def fetch_metrics_tag_list(parsed_xml):
+    xpath_query_list = []
+    parsed_xml = parsed_xml.getroot()
+    for key in parsed_xml.nsmap:
+        if key not in [None,'dei','iso4217','link','srt','xbrldi','xlink','xsi']:
+            xpath_query_list.append(key)
+
+    query_str = ('|'.join([f"{x}:*" for x in xpath_query_list]))
+
+    ns_dict = parsed_xml.nsmap
+    if None in ns_dict:
+        del(ns_dict[None])
+    
+    return parsed_xml.xpath(f"//{query_str}",namespaces=ns_dict) 
+
+
 def add_metrics(parsed_xml,stock_dict_with_ded,context_dict,metric_list,cal_dict):
 
+    tag_list = fetch_metrics_tag_list(parsed_xml)
 
-    for tag in parsed_xml.iter():
+    for tag in tag_list:
         tag_name_str = f"{tag.prefix}_{etree.QName(tag).localname}".lower()
 
-        #DEBUG broken tags
-        #if tag_name_str == "us-gaap_depreciationdepletionandamortization".lower():
-        #    print(tag_name_str)
+        ###DEBUG broken tags
+        
+        #if tag_name_str == "us-gaap_RevenueFromContractWithCustomerExcludingAssessedTax".lower():
+            #print(tag_name_str)
 
         if tag_name_str in metric_list:
             statement_list = extract_statement_from_metric(tag_name_str,stock_dict_with_ded) 
             if (len(statement_list) > 0) & ('contextRef' in tag.attrib) & (tag.text is not None):
                 if (re.match('^-?[0-9]+\.?[0-9]*$',tag.text) ): #testin for numbers. file size becomes huge if you include non-numeric data. lstrip to prevent return false for negative numbers
                     contextref = tag.attrib['contextRef']
-                
 
                     for statement in statement_list:
+
                         stock_dict_with_ded[statement]['metrics'] = create_dict_if_new_key(tag_name_str, stock_dict_with_ded[statement]['metrics']) 
 
                         hasSegment = False
-                        if ('segment' in context_dict[contextref]): #checking it's not a revenue segment and just for one quarter           
+                        dontAdd = False
+                        if ('segment' in context_dict[contextref]): #checking it's a segment and just for one quarter           
                             if convert_tag_name_str(context_dict[contextref]['segment']).lower() in stock_dict_with_ded[statement]['metrics']: #checking if segment is in this statement
                                 stock_dict_with_ded[statement]['metrics'][tag_name_str] = create_dict_if_new_key('segment', stock_dict_with_ded[statement]['metrics'][tag_name_str]) 
                                 stock_dict_with_ded[statement]['metrics'][tag_name_str]['segment'] = create_dict_if_new_key(context_dict[contextref]['segment'], stock_dict_with_ded[statement]['metrics'][tag_name_str]['segment']) 
                                 hasSegment = True 
                             else:
-                                break #if it isn't, don't add it
+                                dontAdd = True #segment not in this statement, don't let past the endDate or instant qualifiers
 
-                        if 'endDate' in context_dict[contextref]: 
+                        if 'endDate' in context_dict[contextref] and dontAdd == False: 
                             if hasSegment:
                                 stock_dict_with_ded[statement]['metrics'][tag_name_str]['segment'][context_dict[contextref]['segment']] = add_duration_metric(stock_dict_with_ded[statement]['metrics'][tag_name_str]['segment'][context_dict[contextref]['segment']],context_dict,contextref,tag,tag_name_str,statement,cal_dict)
                             else:
                                 stock_dict_with_ded[statement]['metrics'][tag_name_str] = add_duration_metric(stock_dict_with_ded[statement]['metrics'][tag_name_str],context_dict,contextref,tag,tag_name_str,statement,cal_dict)
 
-                        elif 'instant' in context_dict[contextref]: #balance sheet item
+                        elif 'instant' in context_dict[contextref] and dontAdd == False: #balance sheet item
                             if hasSegment:
                                 stock_dict_with_ded[statement]['metrics'][tag_name_str]['segment'][context_dict[contextref]['segment']] = add_value_to_metric(stock_dict_with_ded[statement]['metrics'][tag_name_str]['segment'][context_dict[contextref]['segment']],tag,context_dict[contextref]['instant'],cal_dict,tag_name_str,statement,'instant') 
                             else:
@@ -236,7 +256,7 @@ def parse_cal_xml(parsed_xml):
             if statement_role_str not in cal_dict:
                 cal_dict[statement_role_str] = dict()
         
-            cal_dict[statement_role_str][metric] = int(calculation_element[0].xpath('@weight')[0]) 
+            cal_dict[statement_role_str][metric] = float(calculation_element[0].xpath('@weight')[0]) 
 
     return cal_dict
 

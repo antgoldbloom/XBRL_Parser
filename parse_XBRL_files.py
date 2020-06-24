@@ -7,7 +7,9 @@ import os
 xbrl_path = '../data/xbrl/' #INCLUDE LAST /
 json_path  = '../data/json/'  #INCLUDE LAST /
 
-for ticker in os.listdir(xbrl_path):
+ticker_list = os.listdir(xbrl_path)
+
+for ticker in ticker_list: 
 
     start_time = time()
 
