@@ -6,9 +6,9 @@ import os
 json_path = '../data/json/'
 csv_path = '../data/csv/'
 
-ticker = 'GOOG'
-document_end_date = '2020-03-31'
-statement_name = 'CONSOLIDATEDSTATEMENTSOFINCOME'
+ticker = 'NVDA'
+document_end_date = '2020-01-26'
+statement_name = 'CONSOLIDATEDSTATEMENTSOFCASHFLOWS' 
 #statement_name = 'SegmentInformationReportableSegmentsAndReconciliationToConsolidatedNetIncomeDetails'
 #statement_name = 'SegmentInformationDisaggregationOfRevenueDetails'
  

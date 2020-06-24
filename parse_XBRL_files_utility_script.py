@@ -81,11 +81,10 @@ def add_metrics(parsed_xml,stock_dict_with_ded,context_dict,metric_list,cal_dict
 
     for tag in tag_list:
         tag_name_str = f"{tag.prefix}_{etree.QName(tag).localname}".lower()
-
         ###DEBUG broken tags
         
-        #if tag_name_str == "us-gaap_RevenueFromContractWithCustomerExcludingAssessedTax".lower():
-            #print(tag_name_str)
+        #if tag_name_str == "us-gaap_revenuefromcontractwithcustomerexcludingassessedtax":
+        #    print(tag_name_str)
 
         if tag_name_str in metric_list:
             statement_list = extract_statement_from_metric(tag_name_str,stock_dict_with_ded) 
@@ -94,6 +93,7 @@ def add_metrics(parsed_xml,stock_dict_with_ded,context_dict,metric_list,cal_dict
                     contextref = tag.attrib['contextRef']
 
                     for statement in statement_list:
+
 
                         stock_dict_with_ded[statement]['metrics'] = create_dict_if_new_key(tag_name_str, stock_dict_with_ded[statement]['metrics']) 
 
@@ -197,18 +197,25 @@ def parse_pre_xml(soup_pre,stock_dict_with_ded):
     """
 
     for statement_tag in soup_pre.find_all(['link:presentationlink','presentationlink']):
-        statement_role_str = re.search('/role/[A-Za-z]+',statement_tag['xlink:role'])
+
+
+        statement_role_str = re.search('/role/.+$',statement_tag['xlink:role'])
         if statement_role_str is not None:
             statement_name = statement_role_str.group(0)[6:]
             stock_dict_with_ded[statement_name] = dict()
             stock_dict_with_ded[statement_name]['metrics'] = dict()
             pre_arc_dict = dict() #creating a dict for the presentation tags to store order and xlink from
+
+            ###DEBUG
+            #if statement_name == 'CONSOLIDATEDSTATEMENTSOFINCOME':
+            #    print(statement_tag)
+
             for metric_tag in statement_tag:
                 if isinstance(metric_tag, Tag): #prevents pulling Navigatable String
                     if metric_tag.name in ['link:loc','loc']:
                         stock_dict_with_ded = parse_pre_loc_xml(metric_tag,stock_dict_with_ded,statement_name)
                     if metric_tag.name in ['link:presentationarc','presentationarc']: 
-                        pre_arc_dict = extra_pre_arc_xml(metric_tag,pre_arc_dict) 
+                        pre_arc_dict = extract_pre_arc_xml(metric_tag,pre_arc_dict) 
 
             for metric in stock_dict_with_ded[statement_name]['metrics']:
                 loc_xlink_label = stock_dict_with_ded[statement_name]['metrics'][metric]['prearc_xlink:to'] 
@@ -226,7 +233,7 @@ def parse_pre_loc_xml(metric_tag,stock_dict_with_ded,statement_name):
     stock_dict_with_ded[statement_name]['metrics'][metric]['prearc_xlink:to'] = metric_tag['xlink:label'].lower()
     return stock_dict_with_ded 
 
-def extra_pre_arc_xml(metric_tag,pre_arc_dict): 
+def extract_pre_arc_xml(metric_tag,pre_arc_dict): 
     xlink_to = metric_tag['xlink:to'].lower() 
     pre_arc_dict[xlink_to] = dict() 
     pre_arc_dict[xlink_to]['prearc_xlink:from'] = metric_tag['xlink:from'].lower() 
