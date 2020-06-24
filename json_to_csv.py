@@ -8,7 +8,8 @@ csv_path = '../data/csv/'
 
 ticker = 'GOOG'
 document_end_date = '2020-03-31'
-statement_name = 'SegmentInformationReportableSegmentsAndReconciliationToConsolidatedNetIncomeDetails'
+statement_name = 'CONSOLIDATEDSTATEMENTSOFINCOME'
+#statement_name = 'SegmentInformationReportableSegmentsAndReconciliationToConsolidatedNetIncomeDetails'
 #statement_name = 'SegmentInformationDisaggregationOfRevenueDetails'
  
 

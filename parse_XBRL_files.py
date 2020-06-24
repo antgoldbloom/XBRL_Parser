@@ -8,6 +8,7 @@ xbrl_path = '../data/xbrl/' #INCLUDE LAST /
 json_path  = '../data/json/'  #INCLUDE LAST /
 
 ticker_list = os.listdir(xbrl_path)
+ticker_list = ['GOOG'] 
 
 for ticker in ticker_list: 
 

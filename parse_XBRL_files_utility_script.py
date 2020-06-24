@@ -42,9 +42,10 @@ def create_stock_dict(ticker,file_directory):
                 parsed_xml_dict['xsd'] = create_soup_object(dirname,filename) 
 
 
+        
         if parsed_xml_dict.keys() >= {"lab", "pre","instance","xsd","cal"}:
             stock_dict = add_to_stock_dict(stock_dict,parsed_xml_dict,instance_filepath)
-        else:
+        elif re.match('[0-9]{4}-[0-9]{2}-[0-9]{2}',dirname[dirname.rfind('/')+1:]): #if in a directory with a date, print a wanring
             print(f"Warning: missing XBRL file for {ticker} in {dirname}")
     
     return stock_dict
