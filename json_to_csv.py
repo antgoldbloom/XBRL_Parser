@@ -2,13 +2,19 @@ import json
 import numpy as np
 import pandas as pd
 import os
+from pathlib import Path
+import re
+import glob
+from time import time
+
+from datetime import datetime
+import shutil
+import logging
 
 json_path = '../data/json/'
 csv_path = '../data/csv/'
+log_path = '../data/logs/'
 
-ticker = 'NVDA'
-document_end_date = '2020-01-26'
-statement_name = 'ConsolidatedStatementsOfIncome' 
 #statement_name = 'SegmentInformationReportableSegmentsAndReconciliationToConsolidatedNetIncomeDetails'
 #statement_name = 'SegmentInformationDisaggregationOfRevenueDetails'
  
@@ -17,15 +23,15 @@ def load_json_to_dict(json_path,ticker):
     with open(f"{json_path}{ticker}.json", 'r') as stock_json:
         stock_dict = json.loads(stock_json.read())
 
-    return stock_dict[document_end_date]
+    return stock_dict
 
-def list_top_level_statement_tags(stock_dict_with_ded):
+def list_top_level_statement_tags(stock_dict_with_ded,statement):
     top_level_xlink_from = [] 
     #idetify top metric_label
-    for metric in stock_dict_with_ded[statement_name]['metrics']:
-        metric_dict_slice = stock_dict_with_ded[statement_name]['metrics'][metric] 
+    for metric in stock_dict_with_ded[statement]['metrics']:
+        metric_dict_slice = stock_dict_with_ded[statement]['metrics'][metric] 
         if ('prearc_xlink:from' not in metric_dict_slice): 
-            top_level_xlink_from.append(stock_dict_with_ded[statement_name]['metrics'][metric]['prearc_xlink:to'])
+            top_level_xlink_from.append(stock_dict_with_ded[statement]['metrics'][metric]['prearc_xlink:to'])
     return top_level_xlink_from
 
 def create_tmp_stock_dict(stock_dict_with_ded_statement_metric,metric):
@@ -38,25 +44,27 @@ def create_tmp_stock_dict(stock_dict_with_ded_statement_metric,metric):
     return tmp_stock_dict
 
 
-def add_to_stock_list_dict(stock_list_dict,metric,stock_dict_up_to_metrics,is_segment=False,parent_metric=None):
+def add_to_stock_list_dict(stock_dict_with_ded,stock_list_dict,statement,metric,stock_dict_up_to_metrics,logging,is_segment=False,sld_index=None):
     tmp_stock_dict_list = []
-    top_level_xlink_from = list_top_level_statement_tags(stock_dict_with_ded) 
+    top_level_xlink_from = list_top_level_statement_tags(stock_dict_with_ded,statement) 
     tmp_stock_dict = create_tmp_stock_dict(stock_dict_up_to_metrics[metric],metric)
     tmp_stock_dict_list.append(tmp_stock_dict)
 
     if not is_segment:
-        stock_list_dict = walk_prearc_xlink_tree(top_level_xlink_from,metric,stock_dict_up_to_metrics, stock_list_dict,tmp_stock_dict_list)  
+        stock_list_dict = walk_prearc_xlink_tree(top_level_xlink_from,metric,stock_dict_up_to_metrics, stock_list_dict,tmp_stock_dict_list,logging)  
     else: # this is for segments
         stock_list_dict[sld_index] = tmp_stock_dict_list 
 
     return stock_list_dict
 
 
-def walk_prearc_xlink_tree(top_level_xlink_from,metric,stock_dict_up_to_metrics, stock_list_dict,tmp_stock_dict_list): 
+def walk_prearc_xlink_tree(top_level_xlink_from,metric,stock_dict_up_to_metrics, stock_list_dict,tmp_stock_dict_list,logging): 
     xlink_lower_metric = stock_dict_up_to_metrics[metric]['prearc_xlink:from']
     xlink_lower_metric_match = None 
 
-    while (xlink_lower_metric_match not in top_level_xlink_from):
+    WHILE_COUNT_CUTOFF = 10
+    while_count = 0 
+    while ( (xlink_lower_metric_match not in top_level_xlink_from)):
         for metric_lower in stock_dict_up_to_metrics:  
             xlink_lower_metric_match = stock_dict_up_to_metrics[metric_lower]['prearc_xlink:to'] 
             if (xlink_lower_metric_match == xlink_lower_metric) and (xlink_lower_metric_match not in top_level_xlink_from):
@@ -74,31 +82,39 @@ def walk_prearc_xlink_tree(top_level_xlink_from,metric,stock_dict_up_to_metrics,
                 stock_list_dict[metric] = tmp_stock_dict_list 
                 break
 
+        
+        if (xlink_lower_metric_match not in top_level_xlink_from) and (while_count == WHILE_COUNT_CUTOFF): 
+            logging.warning(f"Skipped {metric_lower} due to error in presentation file") 
+            break #GIVE UP ON FINDING MATCHES AT THIS POINT
+
+        while_count+=1
+
     return stock_list_dict 
         
 
 
 
-def create_stock_dict_list(stock_dict_with_ded,freq):
+def create_stock_dict_list(stock_dict_with_ded,statement,freq,logging):
     stock_list_dict = dict()
     #pull out label chain for each numeric metric into dict
-    for metric in stock_dict_with_ded[statement_name]['metrics']:
-        if (freq in stock_dict_with_ded[statement_name]['metrics'][metric]) or ('instant' in stock_dict_with_ded[statement_name]['metrics'][metric]): 
-            stock_list_dict = add_to_stock_list_dict(stock_list_dict,metric,stock_dict_with_ded[statement_name]['metrics'])
-        if 'segment' in stock_dict_with_ded[statement_name]['metrics'][metric]: 
-            for segment_metric in stock_dict_with_ded[statement_name]['metrics'][metric]['segment']:
-                if (freq in stock_dict_with_ded[statement_name]['metrics'][metric]['segment'][segment_metric]) or ('instant' in stock_dict_with_ded[statement_name]['metrics'][metric]['segment'][segment_metric]): 
+    for metric in stock_dict_with_ded[statement]['metrics']:
+        if (freq in stock_dict_with_ded[statement]['metrics'][metric]) or ('instant' in stock_dict_with_ded[statement]['metrics'][metric]): 
+            stock_list_dict = add_to_stock_list_dict(stock_dict_with_ded,stock_list_dict,statement,metric,stock_dict_with_ded[statement]['metrics'],logging)
+        if 'segment' in stock_dict_with_ded[statement]['metrics'][metric]: 
+            for segment_metric in stock_dict_with_ded[statement]['metrics'][metric]['segment']:
+                if (freq in stock_dict_with_ded[statement]['metrics'][metric]['segment'][segment_metric]) or ('instant' in stock_dict_with_ded[statement]['metrics'][metric]['segment'][segment_metric]):   
                     sld_index = f"{metric}___{segment_metric}"
-                    stock_list_dict = add_to_stock_list_dict(stock_list_dict,segment_metric,stock_dict_with_ded[statement_name]['metrics'][metric]['segment'],True,sld_index) #order segments just below parent item
-                    stock_list_dict[sld_index][0]['prearc_order'] = int(stock_list_dict[metric][0]['prearc_order']) + 0.1
-                    for i in range(1,len(stock_list_dict[sld_index])):
-                        stock_list_dict[sld_index][i]['prearc_order'] = stock_list_dict[metric][i]['prearc_order'] 
+                    stock_list_dict = add_to_stock_list_dict(stock_dict_with_ded,stock_list_dict,statement,segment_metric,stock_dict_with_ded[statement]['metrics'][metric]['segment'],logging,True,sld_index) #order segments just below parent item
+                    if metric in stock_list_dict:
+                        stock_list_dict[sld_index][0]['prearc_order'] = float(stock_list_dict[metric][0]['prearc_order']) + 0.1
+                        for i in range(1,len(stock_list_dict[sld_index])):
+                            stock_list_dict[sld_index][i]['prearc_order'] = stock_list_dict[metric][i]['prearc_order'] 
     return stock_list_dict                    
 
 
-def stock_list_dict_to_dataframe(stock_dict_with_ded,freq):
+def stock_list_dict_to_dataframe(stock_dict_with_ded,document_end_date,statement,freq,logging):
 
-    stock_list_dict = create_stock_dict_list(stock_dict_with_ded,freq) 
+    stock_list_dict = create_stock_dict_list(stock_dict_with_ded,statement,freq,logging) 
 
     metric_list = []
     for row in stock_list_dict:
@@ -108,25 +124,81 @@ def stock_list_dict_to_dataframe(stock_dict_with_ded,freq):
 
 
     for metric in stock_list_dict:
-        
-        if freq in stock_list_dict[metric][0]:
-            for metric_date in stock_list_dict[metric][0][freq]:
-                df_statement.loc[df_statement.index==metric,metric_date] =  stock_list_dict[metric][0][freq][metric_date]
-        elif 'instant' in stock_list_dict[metric][0]:     
-            for metric_date in stock_list_dict[metric][0]['instant']:
-                df_statement.loc[df_statement.index==metric,metric_date] =  stock_list_dict[metric][0]['instant'][metric_date]
 
-        
+        for period_type in [freq,'instant']: 
+            if period_type in stock_list_dict[metric][0]:
+                for metric_date in stock_list_dict[metric][0][period_type]:
+                    df_statement.loc[df_statement.index==metric,metric_date] =  stock_list_dict[metric][0][period_type][metric_date]
         
     df_statement = df_statement.iloc[:, ::-1] #reverse order of dates
-    return df_statement
 
-stock_dict_with_ded = load_json_to_dict(json_path,ticker)
-df_statement_qtd = stock_list_dict_to_dataframe(stock_dict_with_ded,'qtd')
-print(df_statement_qtd)
-df_statement_ytd = stock_list_dict_to_dataframe(stock_dict_with_ded,'ytd')
-print(df_statement_ytd)
-df_statement_instant = stock_list_dict_to_dataframe(stock_dict_with_ded,'instant')
+    if len(df_statement) > 0:
+        save_statement(df_statement,stock_dict, document_end_date,statement)
+
+
+def save_statement(df_statement,stock_dict, document_end_date,statement):
+    statement_name = stock_dict[document_end_date]['statements'][statement]['statement_name']
+
+    dash_list = [m.start() for m in re.finditer('-', statement_name)]
+    if len(dash_list) >= 2: 
+        filetype = statement_name[dash_list[0]+2:dash_list[1]-1]
+    else:
+        filetype = 'Other'
+
+    statement_folder = f"{csv_path}{ticker}/{document_end_date}/{filetype}/"
+    
+    Path(statement_folder).mkdir(parents=True, exist_ok=True)
+    
+    statement_name = statement_name.replace('/','')
+    if len(statement_name) > 254:
+        statement_name = statement_name[:254]
+
+    df_statement.to_csv(f"{statement_folder}{statement_name.replace('/','')}.csv")
+
+
+
+def extract_freq(stock_dict,document_end_date):
+    if stock_dict[document_end_date]['document_type'] == '10-Q':  
+        freq = 'qtd'
+    elif stock_dict[document_end_date]['document_type'] == '10-K':  
+        freq = 'ytd'
+
+
+file_list = glob.glob(f"{json_path}/*.json") 
+#file_list = [f"{json_path}INTC.json"]
+
+
+logfilename = f"{log_path}json_to_csv_{datetime.now().strftime('%Y_%m_%d__%H_%M')}.log"
+logging.basicConfig(filename=logfilename, filemode='w', format='%(levelname)s - %(message)s',level=logging.INFO)
+
+overall_start_time = time()
+
+for file_str in file_list: 
+
+    
+    ticker = file_str[len(json_path):-5] 
+    shutil.rmtree(f"{csv_path}{ticker}", ignore_errors=True, onerror=None)  #remove if exists 
+
+    print(ticker)
+    start_time = time()
+    logging.info(ticker)
+    stock_dict= load_json_to_dict(json_path,ticker)
+
+
+    for document_end_date in stock_dict: 
+
+        freq = extract_freq(stock_dict,document_end_date)
+
+        for statement in stock_dict[document_end_date]['statements']: 
+
+            stock_list_dict_to_dataframe(stock_dict[document_end_date]['statements'],document_end_date,statement,freq,logging)
+ 
+    ticker_time = f"{time() - start_time}"
+    logging.info(ticker_time)
+    print(ticker_time)
+
+print(f"Total: time: {time() - overall_start_time}")
+logging.info(f"Total: time: {time() - overall_start_time}")
 
     ####THE LIST IS CURRENT CORRECT ORDERED BY DEFAULT. CASN USE THIS IF THAT CHANGES
     #reorder_list = []

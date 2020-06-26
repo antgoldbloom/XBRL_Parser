@@ -8,7 +8,9 @@ xbrl_path = '../data/xbrl/' #INCLUDE LAST /
 json_path  = '../data/json/'  #INCLUDE LAST /
 
 ticker_list = os.listdir(xbrl_path)
-ticker_list = ['GOOG'] 
+
+
+overall_start_time = time()
 
 for ticker in ticker_list: 
 
@@ -22,3 +24,6 @@ for ticker in ticker_list:
         json.dump(stock_dict, stock_json)
 
     print(time() - start_time)
+
+
+print(f"Total: time: {time() - overall_start_time}")

@@ -201,7 +201,7 @@ def parse_pre_xml(soup_pre,stock_dict_with_ded):
 
         statement_role_str = re.search('/role/.+$',statement_tag['xlink:role'])
         if statement_role_str is not None:
-            statement_name = statement_role_str.group(0)[6:]
+            statement_name = statement_role_str.group(0)[6:].lower()
             stock_dict_with_ded[statement_name] = dict()
             stock_dict_with_ded[statement_name]['metrics'] = dict()
             pre_arc_dict = dict() #creating a dict for the presentation tags to store order and xlink from
@@ -326,7 +326,11 @@ def add_to_stock_dict(stock_dict,parsed_xml_dict,instance_filepath):
     if document_end_date is not None:
 
         stock_dict[document_end_date] = dict()
+        #stock_dict[document_end_date]['document_type'] = dict()
 
+        stock_dict[document_end_date]['document_type'] = parsed_xml_dict['instance'].xpath("//*[local-name()='DocumentType']")[0].text 
+
+        stock_dict[document_end_date]['statements'] = dict()
         """
             This the stock_dict hierarchy
             document date -> Statement  -> 'metric' -> metric  -> order 
@@ -339,33 +343,35 @@ def add_to_stock_dict(stock_dict,parsed_xml_dict,instance_filepath):
 
 
         #Add from Presentation file
-        stock_dict[document_end_date] = parse_pre_xml(parsed_xml_dict['pre'],stock_dict[document_end_date])
+        stock_dict[document_end_date]['statements'] = parse_pre_xml(parsed_xml_dict['pre'],stock_dict[document_end_date]['statements'])
 
         #this metric list is used in pre_lab_xml and add_metrics
-        metric_list = extract_metric_list(stock_dict[document_end_date]) 
+        metric_list = extract_metric_list(stock_dict[document_end_date]['statements']) 
 
         #Add from label file
-        stock_dict[document_end_date] = parse_lab_xml(parsed_xml_dict['lab'],stock_dict[document_end_date],metric_list)
+        stock_dict[document_end_date]['statements'] = parse_lab_xml(parsed_xml_dict['lab'],stock_dict[document_end_date]['statements'],metric_list)
 
         #Add from XSD file
-        stock_dict[document_end_date] = parse_xsd(parsed_xml_dict['xsd'],stock_dict[document_end_date],document_end_date)
+        stock_dict[document_end_date]['statements'] = parse_xsd(parsed_xml_dict['xsd'],stock_dict[document_end_date]['statements'],document_end_date)
 
-        cal_dict = parse_cal_xml(parsed_xml_dict['cal'])
         #Add from instance file
+        cal_dict = parse_cal_xml(parsed_xml_dict['cal'])
         context_dict = do_context_mapping(parsed_xml_dict['instance'])
-        stock_dict[document_end_date] = add_metrics(parsed_xml_dict['instance'],stock_dict[document_end_date],context_dict,metric_list,cal_dict)    
+        stock_dict[document_end_date]['statements'] = add_metrics(parsed_xml_dict['instance'],stock_dict[document_end_date]['statements'],context_dict,metric_list,cal_dict)    
 
-        #change negative symbol based on calc files
-        #stock_dict[document_end_date] = parse_cal(parsed_xml_dict['cal'],stock_dict[document_end_date])
             
     return stock_dict 
+
 def parse_xsd(soup_xsd,stock_dict_with_ded,document_end_date):
 
     for statement_tag in soup_xsd.find_all(['link:roletype','roletype']):
         for statement_sub_tag in statement_tag:
             if statement_sub_tag.name in ['link:definition','definition']: 
-                if statement_tag['id'] in stock_dict_with_ded:
-                    stock_dict_with_ded[statement_tag['id']]['statement_name'] = statement_sub_tag.get_text() 
+                statement_role_str = re.search('/role/.+$',statement_tag['roleuri'])
+                if statement_role_str is not None:
+                    statement_str = statement_role_str.group(0)[6:].lower()
+                    if statement_str in stock_dict_with_ded:
+                        stock_dict_with_ded[statement_str]['statement_name'] = statement_sub_tag.get_text() 
 
     return stock_dict_with_ded
 
