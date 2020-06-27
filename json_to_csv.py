@@ -59,35 +59,36 @@ def add_to_stock_list_dict(stock_dict_with_ded,stock_list_dict,statement,metric,
 
 
 def walk_prearc_xlink_tree(top_level_xlink_from,metric,stock_dict_up_to_metrics, stock_list_dict,tmp_stock_dict_list,logging): 
-    xlink_lower_metric = stock_dict_up_to_metrics[metric]['prearc_xlink:from']
-    xlink_lower_metric_match = None 
+    if 'prearc_xlink:from' in stock_dict_up_to_metrics[metric]:
+        xlink_lower_metric = stock_dict_up_to_metrics[metric]['prearc_xlink:from']
+        xlink_lower_metric_match = None 
 
-    WHILE_COUNT_CUTOFF = 10
-    while_count = 0 
-    while ( (xlink_lower_metric_match not in top_level_xlink_from)):
-        for metric_lower in stock_dict_up_to_metrics:  
-            xlink_lower_metric_match = stock_dict_up_to_metrics[metric_lower]['prearc_xlink:to'] 
-            if (xlink_lower_metric_match == xlink_lower_metric) and (xlink_lower_metric_match not in top_level_xlink_from):
+        WHILE_COUNT_CUTOFF = 10
+        while_count = 0 
+        while ( (xlink_lower_metric_match not in top_level_xlink_from)):
+            for metric_lower in stock_dict_up_to_metrics:  
+                xlink_lower_metric_match = stock_dict_up_to_metrics[metric_lower]['prearc_xlink:to'] 
+                if (xlink_lower_metric_match == xlink_lower_metric) and (xlink_lower_metric_match not in top_level_xlink_from):
 
-                tmp_stock_dict = create_tmp_stock_dict(stock_dict_up_to_metrics[metric_lower],metric_lower)
-                tmp_stock_dict_list.append(tmp_stock_dict)
+                    tmp_stock_dict = create_tmp_stock_dict(stock_dict_up_to_metrics[metric_lower],metric_lower)
+                    tmp_stock_dict_list.append(tmp_stock_dict)
 
-                xlink_lower_metric = stock_dict_up_to_metrics[metric_lower]['prearc_xlink:from']
+                    xlink_lower_metric = stock_dict_up_to_metrics[metric_lower]['prearc_xlink:from']
 
-            elif (xlink_lower_metric_match == xlink_lower_metric) and (xlink_lower_metric_match in top_level_xlink_from):
-                
-                tmp_stock_dict = create_tmp_stock_dict(stock_dict_up_to_metrics[metric_lower],metric_lower)
-                tmp_stock_dict_list.append(tmp_stock_dict)
+                elif (xlink_lower_metric_match == xlink_lower_metric) and (xlink_lower_metric_match in top_level_xlink_from):
+                    
+                    tmp_stock_dict = create_tmp_stock_dict(stock_dict_up_to_metrics[metric_lower],metric_lower)
+                    tmp_stock_dict_list.append(tmp_stock_dict)
 
-                stock_list_dict[metric] = tmp_stock_dict_list 
-                break
+                    stock_list_dict[metric] = tmp_stock_dict_list 
+                    break
 
-        
-        if (xlink_lower_metric_match not in top_level_xlink_from) and (while_count == WHILE_COUNT_CUTOFF): 
-            logging.warning(f"Skipped {metric_lower} due to error in presentation file") 
-            break #GIVE UP ON FINDING MATCHES AT THIS POINT
+            
+            if (xlink_lower_metric_match not in top_level_xlink_from) and (while_count == WHILE_COUNT_CUTOFF): 
+                logging.warning(f"Skipped {metric_lower} due to error in presentation file") 
+                break #GIVE UP ON FINDING MATCHES AT THIS POINT
 
-        while_count+=1
+            while_count+=1
 
     return stock_list_dict 
         
@@ -96,6 +97,8 @@ def walk_prearc_xlink_tree(top_level_xlink_from,metric,stock_dict_up_to_metrics,
 
 def create_stock_dict_list(stock_dict_with_ded,statement,freq,logging):
     stock_list_dict = dict()
+    if statement == 'consolidatedbalancesheets':
+        print(statement)
     #pull out label chain for each numeric metric into dict
     for metric in stock_dict_with_ded[statement]['metrics']:
         if (freq in stock_dict_with_ded[statement]['metrics'][metric]) or ('instant' in stock_dict_with_ded[statement]['metrics'][metric]): 
@@ -112,7 +115,7 @@ def create_stock_dict_list(stock_dict_with_ded,statement,freq,logging):
     return stock_list_dict                    
 
 
-def stock_list_dict_to_dataframe(stock_dict_with_ded,document_end_date,statement,freq,logging):
+def stock_list_dict_to_dataframe(stock_dict_with_ded,document_end_date,document_type,statement,freq,logging):
 
     stock_list_dict = create_stock_dict_list(stock_dict_with_ded,statement,freq,logging) 
 
@@ -133,10 +136,22 @@ def stock_list_dict_to_dataframe(stock_dict_with_ded,document_end_date,statement
     df_statement = df_statement.iloc[:, ::-1] #reverse order of dates
 
     if len(df_statement) > 0:
-        save_statement(df_statement,stock_dict, document_end_date,statement)
+        save_statement(df_statement,stock_dict, document_end_date,document_type,statement)
+    else: 
+        logging.warning(f"{statement} for {document_end_date} was not saved")
 
 
-def save_statement(df_statement,stock_dict, document_end_date,statement):
+def make_filename_safe(statement_name):
+    keepcharacters = (' ','-','_')
+    statement_name = "".join(c for c in statement_name if c.isalnum() or c in keepcharacters).rstrip()
+
+    if len(statement_name) > 250:
+        statement_name = statement_name[:250]
+
+    return statement_name
+
+
+def save_statement(df_statement,stock_dict, document_end_date,document_type,statement):
     statement_name = stock_dict[document_end_date]['statements'][statement]['statement_name']
 
     dash_list = [m.start() for m in re.finditer('-', statement_name)]
@@ -145,15 +160,13 @@ def save_statement(df_statement,stock_dict, document_end_date,statement):
     else:
         filetype = 'Other'
 
-    statement_folder = f"{csv_path}{ticker}/{document_end_date}/{filetype}/"
+    statement_folder = f"{csv_path}{ticker}/{document_end_date} ({document_type})/{filetype}/"
     
     Path(statement_folder).mkdir(parents=True, exist_ok=True)
     
-    statement_name = statement_name.replace('/','')
-    if len(statement_name) > 254:
-        statement_name = statement_name[:254]
+    statement_name = make_filename_safe(statement_name) 
 
-    df_statement.to_csv(f"{statement_folder}{statement_name.replace('/','')}.csv")
+    df_statement.to_csv(f"{statement_folder}{statement_name}.csv")
 
 
 
@@ -163,9 +176,10 @@ def extract_freq(stock_dict,document_end_date):
     elif stock_dict[document_end_date]['document_type'] == '10-K':  
         freq = 'ytd'
 
+    return freq
 
 file_list = glob.glob(f"{json_path}/*.json") 
-#file_list = [f"{json_path}INTC.json"]
+file_list = [f"{json_path}AMZN.json"]
 
 
 logfilename = f"{log_path}json_to_csv_{datetime.now().strftime('%Y_%m_%d__%H_%M')}.log"
@@ -191,7 +205,10 @@ for file_str in file_list:
 
         for statement in stock_dict[document_end_date]['statements']: 
 
-            stock_list_dict_to_dataframe(stock_dict[document_end_date]['statements'],document_end_date,statement,freq,logging)
+            #if statement == 'consolidatedstatementsofoperations':
+            #    print(statement)
+
+            stock_list_dict_to_dataframe(stock_dict[document_end_date]['statements'],document_end_date,stock_dict[document_end_date]['document_type'],statement,freq,logging)
  
     ticker_time = f"{time() - start_time}"
     logging.info(ticker_time)
