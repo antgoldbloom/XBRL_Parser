@@ -35,6 +35,8 @@ def list_top_level_statement_tags(stock_dict_with_ded,statement):
     return top_level_xlink_from
 
 def create_tmp_stock_dict(stock_dict_with_ded_statement_metric,metric):
+    if metric == 'us-gaap_revenuefromcontractwithcustomerexcludingassessedtax':
+        print(metric)
     dict_key_list = ['label','prearc_order', 'prearc_xlink:from','prearc_xlink:to','qtd','ytd','instant']
     tmp_stock_dict = dict()
     tmp_stock_dict['metric'] = metric 
@@ -97,8 +99,6 @@ def walk_prearc_xlink_tree(top_level_xlink_from,metric,stock_dict_up_to_metrics,
 
 def create_stock_dict_list(stock_dict_with_ded,statement,freq,logging):
     stock_list_dict = dict()
-    if statement == 'consolidatedbalancesheets':
-        print(statement)
     #pull out label chain for each numeric metric into dict
     for metric in stock_dict_with_ded[statement]['metrics']:
         if (freq in stock_dict_with_ded[statement]['metrics'][metric]) or ('instant' in stock_dict_with_ded[statement]['metrics'][metric]): 
@@ -127,6 +127,10 @@ def stock_list_dict_to_dataframe(stock_dict_with_ded,document_end_date,document_
 
 
     for metric in stock_list_dict:
+        if 'label' in stock_list_dict[metric][0]:
+            df_statement.loc[df_statement.index==metric,'label'] =  stock_list_dict[metric][0]['label']   
+        else: 
+            print('here')
 
         for period_type in [freq,'instant']: 
             if period_type in stock_list_dict[metric][0]:

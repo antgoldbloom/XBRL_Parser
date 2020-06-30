@@ -31,8 +31,10 @@ def create_stock_dict(ticker,file_directory):
     for dirname, _, filenames in os.walk('{}{}/'.format(file_directory,ticker)):
         parsed_xml_dict = dict()
         for filename in filenames:
-            if (filename[-7:-4] in ['lab','pre']):
-                parsed_xml_dict[filename[-7:-4]] = create_soup_object(dirname,filename) 
+            if (filename[-7:-4] == 'pre'):
+                parsed_xml_dict['pre'] = create_soup_object(dirname,filename) 
+            elif (filename[-7:-4] == 'lab'):
+                parsed_xml_dict['lab']= etree.parse(os.path.join(dirname,filename))
             elif (filename[-7:-4] in ['cal']):
                 parsed_xml_dict['cal']= etree.parse(os.path.join(dirname,filename))
             elif (filename[-3:] == 'xml'):
@@ -100,22 +102,23 @@ def add_metrics(parsed_xml,stock_dict_with_ded,context_dict,metric_list,cal_dict
                         hasSegment = False
                         dontAdd = False
                         if ('segment' in context_dict[contextref]): #checking it's a segment and just for one quarter           
-                            if convert_tag_name_str(context_dict[contextref]['segment']).lower() in stock_dict_with_ded[statement]['metrics']: #checking if segment is in this statement
+                            if convert_tag_name_str(context_dict[contextref]['segment']) in stock_dict_with_ded[statement]['metrics']: #checking if segment is in this statement
                                 stock_dict_with_ded[statement]['metrics'][tag_name_str] = create_dict_if_new_key('segment', stock_dict_with_ded[statement]['metrics'][tag_name_str]) 
-                                stock_dict_with_ded[statement]['metrics'][tag_name_str]['segment'] = create_dict_if_new_key(context_dict[contextref]['segment'], stock_dict_with_ded[statement]['metrics'][tag_name_str]['segment']) 
+                                segment_name_str = convert_tag_name_str(context_dict[contextref]['segment']) 
+                                stock_dict_with_ded[statement]['metrics'][tag_name_str]['segment'] = create_dict_if_new_key(segment_name_str, stock_dict_with_ded[statement]['metrics'][tag_name_str]['segment']) 
                                 hasSegment = True 
                             else:
                                 dontAdd = True #segment not in this statement, don't let past the endDate or instant qualifiers
 
                         if 'endDate' in context_dict[contextref] and dontAdd == False: 
                             if hasSegment:
-                                stock_dict_with_ded[statement]['metrics'][tag_name_str]['segment'][context_dict[contextref]['segment']] = add_duration_metric(stock_dict_with_ded[statement]['metrics'][tag_name_str]['segment'][context_dict[contextref]['segment']],context_dict,contextref,tag,tag_name_str,statement,cal_dict)
+                                stock_dict_with_ded[statement]['metrics'][tag_name_str]['segment'][context_dict[contextref]['segment']] = add_duration_metric(stock_dict_with_ded[statement]['metrics'][tag_name_str]['segment'][segment_name_str],context_dict,contextref,tag,tag_name_str,statement,cal_dict)
                             else:
                                 stock_dict_with_ded[statement]['metrics'][tag_name_str] = add_duration_metric(stock_dict_with_ded[statement]['metrics'][tag_name_str],context_dict,contextref,tag,tag_name_str,statement,cal_dict)
 
                         elif 'instant' in context_dict[contextref] and dontAdd == False: #balance sheet item
                             if hasSegment:
-                                stock_dict_with_ded[statement]['metrics'][tag_name_str]['segment'][context_dict[contextref]['segment']] = add_value_to_metric(stock_dict_with_ded[statement]['metrics'][tag_name_str]['segment'][context_dict[contextref]['segment']],tag,context_dict[contextref]['instant'],cal_dict,tag_name_str,statement,'instant') 
+                                stock_dict_with_ded[statement]['metrics'][tag_name_str]['segment'][context_dict[contextref]['segment']] = add_value_to_metric(stock_dict_with_ded[statement]['metrics'][tag_name_str]['segment'][segment_name_str],tag,context_dict[contextref]['instant'],cal_dict,tag_name_str,statement,'instant') 
                             else:
                                 stock_dict_with_ded[statement]['metrics'][tag_name_str] = add_value_to_metric(stock_dict_with_ded[statement]['metrics'][tag_name_str],tag,context_dict[contextref]['instant'],cal_dict,tag_name_str,statement,'instant') 
     
@@ -268,10 +271,44 @@ def parse_cal_xml(parsed_xml):
 
     return cal_dict
 
+def create_label_lookup(parsed_xml):
+
+    LABEL_NAMESPACE = {'link': 'http://www.xbrl.org/2003/linkbase', 'xsi': 'http://www.w3.org/2001/XMLSchema-instance', 'xlink': 'http://www.w3.org/1999/xlink'}
+
+    parsed_xml = parsed_xml.getroot()
+    #ns_dict = parsed_xml.nsmap
+
+    parsed_xml_loc = parsed_xml.xpath(f"//link:loc",namespaces=LABEL_NAMESPACE)
+
+    lab_dict = {}
+
+    for loc in parsed_xml_loc:
+        metric_href_elements = loc.xpath('@xlink:href',namespaces=LABEL_NAMESPACE)
+        for metric_href in metric_href_elements:
+            label = loc.xpath('@xlink:label',namespaces=LABEL_NAMESPACE)[0]
+            metric = metric_href[metric_href.find('#')+1:].lower()
+            if metric not in lab_dict:
+                lab_dict[metric] = {}
+        
+            lab_dict[metric]['xlink:label'] = label 
+
+    for metric in lab_dict:
+        lab_dict[metric]['label'] = {} 
+        xlink_label = lab_dict[metric]['xlink:label']
+
+        label_xml = parsed_xml.xpath(f"//link:label[@xlink:label='lab_{xlink_label[4:]}']",namespaces=LABEL_NAMESPACE)
+        for element in label_xml:
+            label_role = element.get(f"{{{LABEL_NAMESPACE['xlink']}}}role")
+            label_role = re.search('/role/[A-Za-z]+',label_role).group(0)[6:] 
+            lab_dict[metric]['label'][label_role] = element.text
+
+    return lab_dict
+
+
+
+
 def parse_lab_xml(soup_lab,stock_dict_with_ded,metric_list):
     
-    
-
     tag_list = soup_lab.find_all()
 
     lab_loc_arc_dict = dict()
@@ -349,7 +386,8 @@ def add_to_stock_dict(stock_dict,parsed_xml_dict,instance_filepath):
         metric_list = extract_metric_list(stock_dict[document_end_date]['statements']) 
 
         #Add from label file
-        stock_dict[document_end_date]['statements'] = parse_lab_xml(parsed_xml_dict['lab'],stock_dict[document_end_date]['statements'],metric_list)
+        #stock_dict[document_end_date]['statements'] = parse_lab_xml(parsed_xml_dict['lab'],stock_dict[document_end_date]['statements'],metric_list)
+        label_lookup_dict = create_label_lookup(parsed_xml_dict['lab'])
 
         #Add from XSD file
         stock_dict[document_end_date]['statements'] = parse_xsd(parsed_xml_dict['xsd'],stock_dict[document_end_date]['statements'],document_end_date)
@@ -409,10 +447,10 @@ def do_context_mapping(parsed_xml):
 ####UTILITY FUNCTIONS
 
 def convert_str_name_tag(str_name):
-    return str_name.replace('_',':')
+    return str_name.replace('_',':').lower()
 
 def convert_tag_name_str(tag_name):
-    return tag_name.replace(':','_')
+    return tag_name.replace(':','_').lower()
 
 def create_dict_if_new_key(s_key,s_dict):
     if s_key not in s_dict:
