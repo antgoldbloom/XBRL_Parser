@@ -282,6 +282,7 @@ def create_label_lookup(parsed_xml):
 
     lab_dict = {}
 
+
     for loc in parsed_xml_loc:
         metric_href_elements = loc.xpath('@xlink:href',namespaces=LABEL_NAMESPACE)
         for metric_href in metric_href_elements:
@@ -291,16 +292,18 @@ def create_label_lookup(parsed_xml):
                 lab_dict[metric] = {}
         
             lab_dict[metric]['xlink:label'] = label 
+            lab_dict[metric]['label'] = {} 
 
-    for metric in lab_dict:
-        lab_dict[metric]['label'] = {} 
-        xlink_label = lab_dict[metric]['xlink:label']
+    parsed_xml_lab = parsed_xml.xpath(f"//link:label",namespaces=LABEL_NAMESPACE)
 
-        label_xml = parsed_xml.xpath(f"//link:label[@xlink:label='lab_{xlink_label[4:]}']",namespaces=LABEL_NAMESPACE)
-        for element in label_xml:
-            label_role = element.get(f"{{{LABEL_NAMESPACE['xlink']}}}role")
-            label_role = re.search('/role/[A-Za-z]+',label_role).group(0)[6:] 
-            lab_dict[metric]['label'][label_role] = element.text
+    for lab in parsed_xml_lab:
+        for metric in lab_dict:
+            xlink_label = lab_dict[metric]['xlink:label']
+            if xlink_label[4:] == lab.get(f"{{{LABEL_NAMESPACE['xlink']}}}label")[4:]: 
+                label_role = lab.get(f"{{{LABEL_NAMESPACE['xlink']}}}role")
+                label_role = re.search('/role/[A-Za-z]+',label_role).group(0)[6:] 
+                lab_dict[metric]['label'][label_role] = lab.text
+
 
     return lab_dict
 
