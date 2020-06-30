@@ -106,21 +106,21 @@ def add_metrics(parsed_xml,stock_dict_with_ded,context_dict,metric_list,cal_dict
                                 stock_dict_with_ded[statement]['metrics'][tag_name_str] = create_dict_if_new_key('segment', stock_dict_with_ded[statement]['metrics'][tag_name_str]) 
                                 segment_name_str = convert_tag_name_str(context_dict[contextref]['segment']) 
                                 stock_dict_with_ded[statement]['metrics'][tag_name_str]['segment'] = create_dict_if_new_key(segment_name_str, stock_dict_with_ded[statement]['metrics'][tag_name_str]['segment']) 
-                                stock_dict_with_ded[statement]['metrics'][tag_name_str]['segment'][segment_name_str] = add_labels( stock_dict_with_ded[statement]['metrics'][tag_name_str]['segment'][segment_name_str],label_lookup_dict,tag_name_str) 
+                                stock_dict_with_ded[statement]['metrics'][tag_name_str]['segment'][segment_name_str] = add_labels( stock_dict_with_ded[statement]['metrics'][tag_name_str]['segment'][segment_name_str],label_lookup_dict,segment_name_str) 
                                 hasSegment = True 
                             else:
                                 dontAdd = True #segment not in this statement, don't let past the endDate or instant qualifiers
 
                         if 'endDate' in context_dict[contextref] and dontAdd == False: 
                             if hasSegment:
-                                stock_dict_with_ded[statement]['metrics'][tag_name_str]['segment'][context_dict[contextref]['segment']] = add_duration_metric(stock_dict_with_ded[statement]['metrics'][tag_name_str]['segment'][segment_name_str],context_dict,contextref,tag,tag_name_str,statement,cal_dict)
+                                stock_dict_with_ded[statement]['metrics'][tag_name_str]['segment'][segment_name_str] = add_duration_metric(stock_dict_with_ded[statement]['metrics'][tag_name_str]['segment'][segment_name_str],context_dict,contextref,tag,tag_name_str,statement,cal_dict)
                             else:
                                 stock_dict_with_ded[statement]['metrics'][tag_name_str] = add_duration_metric(stock_dict_with_ded[statement]['metrics'][tag_name_str],context_dict,contextref,tag,tag_name_str,statement,cal_dict)
                                 stock_dict_with_ded[statement]['metrics'][tag_name_str] = add_labels( stock_dict_with_ded[statement]['metrics'][tag_name_str],label_lookup_dict,tag_name_str) 
 
                         elif 'instant' in context_dict[contextref] and dontAdd == False: #balance sheet item
                             if hasSegment:
-                                stock_dict_with_ded[statement]['metrics'][tag_name_str]['segment'][context_dict[contextref]['segment']] = add_value_to_metric(stock_dict_with_ded[statement]['metrics'][tag_name_str]['segment'][segment_name_str],tag,context_dict[contextref]['instant'],cal_dict,tag_name_str,statement,'instant') 
+                                stock_dict_with_ded[statement]['metrics'][tag_name_str]['segment'][segment_name_str] = add_value_to_metric(stock_dict_with_ded[statement]['metrics'][tag_name_str]['segment'][segment_name_str],tag,context_dict[contextref]['instant'],cal_dict,tag_name_str,statement,'instant') 
                             else:
                                 stock_dict_with_ded[statement]['metrics'][tag_name_str] = add_value_to_metric(stock_dict_with_ded[statement]['metrics'][tag_name_str],tag,context_dict[contextref]['instant'],cal_dict,tag_name_str,statement,'instant') 
                                 stock_dict_with_ded[statement]['metrics'][tag_name_str] = add_labels( stock_dict_with_ded[statement]['metrics'][tag_name_str],label_lookup_dict,tag_name_str) 

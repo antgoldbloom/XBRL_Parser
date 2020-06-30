@@ -11,9 +11,6 @@ from datetime import datetime
 import shutil
 import logging
 
-json_path = '../data/json/'
-csv_path = '../data/csv/'
-log_path = '../data/logs/'
 
 #statement_name = 'SegmentInformationReportableSegmentsAndReconciliationToConsolidatedNetIncomeDetails'
 #statement_name = 'SegmentInformationDisaggregationOfRevenueDetails'
@@ -35,9 +32,7 @@ def list_top_level_statement_tags(stock_dict_with_ded,statement):
     return top_level_xlink_from
 
 def create_tmp_stock_dict(stock_dict_with_ded_statement_metric,metric):
-    if metric == 'us-gaap_revenuefromcontractwithcustomerexcludingassessedtax':
-        print(metric)
-    dict_key_list = ['label','prearc_order', 'prearc_xlink:from','prearc_xlink:to','qtd','ytd','instant']
+    dict_key_list = ['labels','prearc_order', 'prearc_xlink:from','prearc_xlink:to','qtd','ytd','instant']
     tmp_stock_dict = dict()
     tmp_stock_dict['metric'] = metric 
     for key in dict_key_list:
@@ -127,17 +122,20 @@ def stock_list_dict_to_dataframe(stock_dict_with_ded,document_end_date,document_
 
 
     for metric in stock_list_dict:
-        if 'label' in stock_list_dict[metric][0]:
-            df_statement.loc[df_statement.index==metric,'label'] =  stock_list_dict[metric][0]['label']   
-        else: 
-            print('here')
+        if 'labels' in stock_list_dict[metric][0]:
+            label_keys = ['label','terseLabel', 'verboseLabel']
+            for key in label_keys:
+                if key in stock_list_dict[metric][0]['labels']: 
+                    df_statement.loc[df_statement.index==metric,key] =  stock_list_dict[metric][0]['labels'][key]  
 
         for period_type in [freq,'instant']: 
             if period_type in stock_list_dict[metric][0]:
                 for metric_date in stock_list_dict[metric][0][period_type]:
                     df_statement.loc[df_statement.index==metric,metric_date] =  stock_list_dict[metric][0][period_type][metric_date]
         
-    df_statement = df_statement.iloc[:, ::-1] #reverse order of dates
+    #df_statement = df_statement.iloc[:, ::-1] #reverse order of dates
+    df_statement = df_statement.reindex(sorted(df_statement.columns,reverse=True), axis=1)
+    df_statement.index.name = statement
 
     if len(df_statement) > 0:
         save_statement(df_statement,stock_dict, document_end_date,document_type,statement)
@@ -181,6 +179,11 @@ def extract_freq(stock_dict,document_end_date):
         freq = 'ytd'
 
     return freq
+
+
+json_path = '../data/json/'
+csv_path = '../data/csv/'
+log_path = '../data/logs/'
 
 file_list = glob.glob(f"{json_path}/*.json") 
 file_list = [f"{json_path}AMZN.json"]

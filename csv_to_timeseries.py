@@ -1,44 +1,116 @@
 import pandas as pd
+import numpy as np
+import os
+import re 
+import shutil
+from pathlib import Path
+import logging
+from datetime import datetime
+
+pd.set_option('max_columns', 50)
+
+def load_statements_into_dict(statement,csv_path,ticker):
+
+    df_dict = {}
+
+    for dirname, _, filenames in os.walk(f"{csv_path}{ticker}"):
+        if '(10-Q)' in dirname:
+            for filename in filenames:
+                #print(filename)
+                if filename.lower() == statement.lower():
+                    full_path = os.path.join(dirname, filename)
+                    df_dict[full_path[17:27]] = pd.read_csv(full_path,index_col=[0])
+    return df_dict
+
+
+def populate_time_series(df_dict,date_list):
+
+
+    for date in date_list:
+        
+        date_cols = [date_col for date_col in df_dict[date].columns if re.match('[0-9]{4}-[0-9]{2}-[0-9]{2}',date_col)]
+        tmp_df = df_dict[date][date_cols]
+
+        if date == date_list[0]:
+            master_df = tmp_df
+        else:
+            #df_dict.
+            new_columns = tmp_df.columns.difference(master_df.columns)
+            master_df = master_df.merge(tmp_df[new_columns],left_index=True,right_index=True,how='outer')
+            master_df.loc[master_df.index.isin(tmp_df.index),master_df.columns.isin(tmp_df)] = tmp_df
+
+    return master_df
+
+def adjust_for_tag_changes(master_df,date_list): 
+    drop_list = []    
+    for metric in master_df[(master_df.isna().any(axis=1) & master_df[date_list[0]].notna())].index:
+        for metric_match in master_df[master_df.index != metric].index:
+
+            non_nan_columns = master_df.loc[[metric,metric_match],:].notna().all(axis=0)
+            agreement_series = master_df.loc[metric,non_nan_columns]==master_df.loc[metric_match,non_nan_columns]
+
+            if (agreement_series.all() == True) and len(agreement_series > 1):
+                    master_df.loc[metric,master_df.columns[master_df[master_df.index == metric].isna().iloc[0].to_list()]] = master_df.loc[metric_match,master_df.columns[master_df[master_df.index == metric].isna().iloc[0].to_list()]] 
+                    drop_list.append(metric_match)
+
+    for metric in drop_list:
+        master_df = master_df.drop(metric,axis=0)
+
+    return master_df
+
+#def adjust_by_matching_labels(master_df,df_dict):
+
+
+
+
+def reorder_dataframe(master_df,date_list):
+    latest_filing_mask = master_df.index.isin(df_dict[date_list[0]].index)
+
+    master_df_tmp = master_df.loc[latest_filing_mask,:]
+    master_df_tmp = master_df_tmp.reindex(df_dict[date_list[0]].index)
+    master_df_tmp = master_df_tmp.append(master_df.loc[~latest_filing_mask,:])
+
+    master_df_tmp = master_df_tmp.reindex(date_list,axis=1)
+
+
+    return master_df_tmp
+
+def pick_latest_statement(csv_path,ticker):
+    ded_dict = {}
+    for dirname in os.listdir(f"{csv_path}{ticker}"):
+        ded_dict[dirname[:10]] = dirname 
+    
+    return ded_dict[max(ded_dict.keys())]
+
+
 csv_path = '../data/csv/'
+log_path = '../data/logs/'
+
+timeseries_path = '../data/timeseries/'
 ticker = 'AMZN'
 
-df_dict = {}
+logfilename = f"{log_path}csv_to_timeseries_{datetime.now().strftime('%Y_%m_%d__%H_%M')}.log"
+logging.basicConfig(filename=logfilename, filemode='w', format='%(levelname)s - %(message)s',level=logging.INFO)
 
-import os
-for dirname, _, filenames in os.walk(f"{csv_path}{ticker}"):
-    if '(10-Q)' in dirname:
-        for filename in filenames:
-            #print(filename)
-            if filename.lower() == '1002000 - Statement - Consolidated Statements Of Operations.csv'.lower():
-                full_path = os.path.join(dirname, filename)
-                print(full_path)
-                df_dict[full_path[17:27]] = pd.read_csv(full_path,index_col=[0])
+overall_start_time = time()
+
+shutil.rmtree(f"{timeseries_path}{ticker}", ignore_errors=True, onerror=None)  #remove if exists 
+Path(f"{timeseries_path}{ticker}").mkdir(parents=True, exist_ok=True)
+
+latest_ded = pick_latest_statement(csv_path,ticker)
 
 
-date_list = sorted(list(df_dict.keys()),reverse=True)
+for dirname, _, filenames in os.walk(f"{csv_path}{ticker}/{latest_ded}"):
+    for statement in filenames:
+        
+        if 'Statement' in statement:
+            df_dict = load_statements_into_dict(statement,csv_path,ticker)
+            date_list = sorted(list(df_dict.keys()),reverse=True)
+            master_df = populate_time_series(df_dict,date_list)
+            master_df = adjust_for_tag_changes(master_df,date_list)
+            master_df = reorder_dataframe(master_df,date_list)
 
-for date in date_list:
-    if date == date_list[0]:
-        master_df = df_dict[date]
-    else:
-        #df_dict.
-        new_columns = df_dict[date].columns.difference(master_df.columns)
-        master_df = master_df.merge(df_dict[date][new_columns],left_index=True,right_index=True,how='outer')
-        master_df.loc[master_df.index.isin(df_dict[date].index),master_df.columns.isin(df_dict[date].columns)] = df_dict[date]
-
-
-for metric in master_df[(master_df.isna().any(axis=1) & master_df[date_list[0]].notna())].index:
-    print(metric)
-    if metric == 'us-gaap_revenuefromcontractwithcustomerexcludingassessedtax':
-        print(metric)
-    for metric_match in master_df[master_df.index != metric].index:
-        if metric_match == 'us-gaap_salesrevenuenet':
-            print(metric_match)
-
-        agreement_series = master_df.loc[metric,master_df.notna().all(axis=0)]==master_df.loc[metric_match,master_df.notna().all(axis=0)]
-        print(agreement_series)
-        if (agreement_series.all() == True) and len(agreement_series > 1):
-                print(metric_match)
-                master_df.loc[metric,master_df.columns[master_df[master_df.index == metric].isna().iloc[0].to_list()]
- ] = master_df.loc[metric_match,master_df.columns[master_df[master_df.index == metric].isna().iloc[0].to_list()]
- ] 
+            master_df.to_csv(f"{timeseries_path}{ticker}/{statement}")
+        
+print(f"Total: time: {time() - overall_start_time}")
+logging.info(f"Total: time: {time() - overall_start_time}")
