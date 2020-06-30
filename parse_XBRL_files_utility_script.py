@@ -77,7 +77,7 @@ def fetch_metrics_tag_list(parsed_xml):
     return parsed_xml.xpath(f"//{query_str}",namespaces=ns_dict) 
 
 
-def add_metrics(parsed_xml,stock_dict_with_ded,context_dict,metric_list,cal_dict):
+def add_metrics(parsed_xml,stock_dict_with_ded,context_dict,metric_list,cal_dict,label_lookup_dict):
 
     tag_list = fetch_metrics_tag_list(parsed_xml)
 
@@ -106,6 +106,7 @@ def add_metrics(parsed_xml,stock_dict_with_ded,context_dict,metric_list,cal_dict
                                 stock_dict_with_ded[statement]['metrics'][tag_name_str] = create_dict_if_new_key('segment', stock_dict_with_ded[statement]['metrics'][tag_name_str]) 
                                 segment_name_str = convert_tag_name_str(context_dict[contextref]['segment']) 
                                 stock_dict_with_ded[statement]['metrics'][tag_name_str]['segment'] = create_dict_if_new_key(segment_name_str, stock_dict_with_ded[statement]['metrics'][tag_name_str]['segment']) 
+                                stock_dict_with_ded[statement]['metrics'][tag_name_str]['segment'][segment_name_str] = add_labels( stock_dict_with_ded[statement]['metrics'][tag_name_str]['segment'][segment_name_str],label_lookup_dict,tag_name_str) 
                                 hasSegment = True 
                             else:
                                 dontAdd = True #segment not in this statement, don't let past the endDate or instant qualifiers
@@ -115,14 +116,21 @@ def add_metrics(parsed_xml,stock_dict_with_ded,context_dict,metric_list,cal_dict
                                 stock_dict_with_ded[statement]['metrics'][tag_name_str]['segment'][context_dict[contextref]['segment']] = add_duration_metric(stock_dict_with_ded[statement]['metrics'][tag_name_str]['segment'][segment_name_str],context_dict,contextref,tag,tag_name_str,statement,cal_dict)
                             else:
                                 stock_dict_with_ded[statement]['metrics'][tag_name_str] = add_duration_metric(stock_dict_with_ded[statement]['metrics'][tag_name_str],context_dict,contextref,tag,tag_name_str,statement,cal_dict)
+                                stock_dict_with_ded[statement]['metrics'][tag_name_str] = add_labels( stock_dict_with_ded[statement]['metrics'][tag_name_str],label_lookup_dict,tag_name_str) 
 
                         elif 'instant' in context_dict[contextref] and dontAdd == False: #balance sheet item
                             if hasSegment:
                                 stock_dict_with_ded[statement]['metrics'][tag_name_str]['segment'][context_dict[contextref]['segment']] = add_value_to_metric(stock_dict_with_ded[statement]['metrics'][tag_name_str]['segment'][segment_name_str],tag,context_dict[contextref]['instant'],cal_dict,tag_name_str,statement,'instant') 
                             else:
                                 stock_dict_with_ded[statement]['metrics'][tag_name_str] = add_value_to_metric(stock_dict_with_ded[statement]['metrics'][tag_name_str],tag,context_dict[contextref]['instant'],cal_dict,tag_name_str,statement,'instant') 
+                                stock_dict_with_ded[statement]['metrics'][tag_name_str] = add_labels( stock_dict_with_ded[statement]['metrics'][tag_name_str],label_lookup_dict,tag_name_str) 
     
     return stock_dict_with_ded 
+
+def add_labels(stock_dict_up_to_labels,label_lookup_dict,tag_name_str):
+    stock_dict_up_to_labels = create_dict_if_new_key('labels', stock_dict_up_to_labels) 
+    stock_dict_up_to_labels['labels'] = label_lookup_dict[tag_name_str]['labels']
+    return stock_dict_up_to_labels 
 
 
 def extract_statement_from_metric(chosen_metric,stock_list_with_ded):
@@ -292,7 +300,7 @@ def create_label_lookup(parsed_xml):
                 lab_dict[metric] = {}
         
             lab_dict[metric]['xlink:label'] = label 
-            lab_dict[metric]['label'] = {} 
+            lab_dict[metric]['labels'] = {} 
 
     parsed_xml_lab = parsed_xml.xpath(f"//link:label",namespaces=LABEL_NAMESPACE)
 
@@ -302,7 +310,7 @@ def create_label_lookup(parsed_xml):
             if xlink_label[4:] == lab.get(f"{{{LABEL_NAMESPACE['xlink']}}}label")[4:]: 
                 label_role = lab.get(f"{{{LABEL_NAMESPACE['xlink']}}}role")
                 label_role = re.search('/role/[A-Za-z]+',label_role).group(0)[6:] 
-                lab_dict[metric]['label'][label_role] = lab.text
+                lab_dict[metric]['labels'][label_role] = lab.text
 
 
     return lab_dict
@@ -398,7 +406,7 @@ def add_to_stock_dict(stock_dict,parsed_xml_dict,instance_filepath):
         #Add from instance file
         cal_dict = parse_cal_xml(parsed_xml_dict['cal'])
         context_dict = do_context_mapping(parsed_xml_dict['instance'])
-        stock_dict[document_end_date]['statements'] = add_metrics(parsed_xml_dict['instance'],stock_dict[document_end_date]['statements'],context_dict,metric_list,cal_dict)    
+        stock_dict[document_end_date]['statements'] = add_metrics(parsed_xml_dict['instance'],stock_dict[document_end_date]['statements'],context_dict,metric_list,cal_dict,label_lookup_dict)    
 
             
     return stock_dict 
