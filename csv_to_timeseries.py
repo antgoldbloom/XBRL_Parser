@@ -6,24 +6,31 @@ import shutil
 from pathlib import Path
 import logging
 from datetime import datetime
+from time import time
 
 pd.set_option('max_columns', 50)
 
-def load_statements_into_dict(statement,csv_path,ticker):
+def load_statements_into_dict(statement,csv_path,ticker,logging):
 
     df_dict = {}
 
+    log_list = []
     for dirname, _, filenames in os.walk(f"{csv_path}{ticker}"):
         if '(10-Q)' in dirname:
+            log_list.append(dirname)
             for filename in filenames:
-                #print(filename)
-                if filename.lower() == statement.lower():
-                    full_path = os.path.join(dirname, filename)
+                if statement[statement.lower().find('statement'):].lower() == filename[filename.lower().find('statement'):].lower(): 
+                    full_path = os.path.join(dirname,filename)
                     df_dict[full_path[17:27]] = pd.read_csv(full_path,index_col=[0])
+                    log_list.remove(dirname)
+
+    for dirname in log_list:
+        logging.warning(f'{statement} equivalent not found in {dirname}')
+                
     return df_dict
 
 
-def populate_time_series(df_dict,date_list):
+def populate_time_series(df_dict,date_list,logging):
 
 
     for date in date_list:
@@ -39,9 +46,11 @@ def populate_time_series(df_dict,date_list):
             master_df = master_df.merge(tmp_df[new_columns],left_index=True,right_index=True,how='outer')
             master_df.loc[master_df.index.isin(tmp_df.index),master_df.columns.isin(tmp_df)] = tmp_df
 
+    master_df.index.name = df_dict[date_list[0]].index.name #Preserve index name (it drops if you merge tables with different index names) 
+
     return master_df
 
-def adjust_for_tag_changes(master_df,date_list): 
+def adjust_for_tag_changes(master_df,date_list,logging): 
     drop_list = []    
     for metric in master_df[(master_df.isna().any(axis=1) & master_df[date_list[0]].notna())].index:
         for metric_match in master_df[master_df.index != metric].index:
@@ -63,7 +72,7 @@ def adjust_for_tag_changes(master_df,date_list):
 
 
 
-def reorder_dataframe(master_df,date_list):
+def reorder_dataframe(master_df,date_list,logging):
     latest_filing_mask = master_df.index.isin(df_dict[date_list[0]].index)
 
     master_df_tmp = master_df.loc[latest_filing_mask,:]
@@ -104,11 +113,11 @@ for dirname, _, filenames in os.walk(f"{csv_path}{ticker}/{latest_ded}"):
     for statement in filenames:
         
         if 'Statement' in statement:
-            df_dict = load_statements_into_dict(statement,csv_path,ticker)
+            df_dict = load_statements_into_dict(statement,csv_path,ticker,logging)
             date_list = sorted(list(df_dict.keys()),reverse=True)
-            master_df = populate_time_series(df_dict,date_list)
-            master_df = adjust_for_tag_changes(master_df,date_list)
-            master_df = reorder_dataframe(master_df,date_list)
+            master_df = populate_time_series(df_dict,date_list,logging)
+            master_df = adjust_for_tag_changes(master_df,date_list,logging)
+            master_df = reorder_dataframe(master_df,date_list,logging)
 
             master_df.to_csv(f"{timeseries_path}{ticker}/{statement}")
         

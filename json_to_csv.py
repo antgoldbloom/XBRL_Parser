@@ -156,13 +156,13 @@ def make_filename_safe(statement_name):
 def save_statement(df_statement,stock_dict, document_end_date,document_type,statement):
     statement_name = stock_dict[document_end_date]['statements'][statement]['statement_name']
 
-    dash_list = [m.start() for m in re.finditer('-', statement_name)]
-    if len(dash_list) >= 2: 
-        filetype = statement_name[dash_list[0]+2:dash_list[1]-1]
-    else:
-        filetype = 'Other'
+    #dash_list = [m.start() for m in re.finditer('-', statement_name)]
+    #if len(dash_list) >= 2: 
+    #    filetype = statement_name[dash_list[0]+2:dash_list[1]-1]
+    #else:
+    #    filetype = 'Other'
 
-    statement_folder = f"{csv_path}{ticker}/{document_end_date} ({document_type})/{filetype}/"
+    statement_folder = f"{csv_path}{ticker}/{document_end_date} ({document_type})/"
     
     Path(statement_folder).mkdir(parents=True, exist_ok=True)
     
