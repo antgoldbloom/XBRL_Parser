@@ -14,17 +14,24 @@ def load_statements_into_dict(statement,csv_path,ticker,logging):
 
     df_dict = {}
 
-    log_list = []
+    missing_list = []
     for dirname, _, filenames in os.walk(f"{csv_path}{ticker}"):
         if '(10-Q)' in dirname:
-            log_list.append(dirname)
+            missing_list.append(dirname)
             for filename in filenames:
                 if statement[statement.lower().find('statement'):].lower() == filename[filename.lower().find('statement'):].lower(): 
                     full_path = os.path.join(dirname,filename)
                     df_dict[full_path[17:27]] = pd.read_csv(full_path,index_col=[0])
-                    log_list.remove(dirname)
+                    missing_list.remove(dirname)
+    
 
-    for dirname in log_list:
+    date_list = sorted(list(df_dict.keys()),reverse=True)
+
+    #reference_df = df_dict[date_list[0]]
+
+
+
+    for dirname in missing_list:
         logging.warning(f'{statement} equivalent not found in {dirname}')
                 
     return df_dict
@@ -52,8 +59,9 @@ def populate_time_series(df_dict,date_list,logging):
 
 def adjust_for_tag_changes(master_df,date_list,logging): 
     drop_list = []    
-    for metric in master_df[(master_df.isna().any(axis=1) & master_df[date_list[0]].notna())].index:
-        for metric_match in master_df[master_df.index != metric].index:
+    tags_from_latest_statement = master_df[(master_df.isna().any(axis=1) & master_df[date_list[0]].notna())]
+    for metric in tags_from_latest_statement.index:
+        for metric_match in master_df[~master_df.index.isin(tags_from_latest_statement.index)].index:
 
             non_nan_columns = master_df.loc[[metric,metric_match],:].notna().all(axis=0)
             agreement_series = master_df.loc[metric,non_nan_columns]==master_df.loc[metric_match,non_nan_columns]
@@ -113,6 +121,8 @@ for dirname, _, filenames in os.walk(f"{csv_path}{ticker}/{latest_ded}"):
     for statement in filenames:
         
         if 'Statement' in statement:
+
+
             df_dict = load_statements_into_dict(statement,csv_path,ticker,logging)
             date_list = sorted(list(df_dict.keys()),reverse=True)
             master_df = populate_time_series(df_dict,date_list,logging)

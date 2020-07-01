@@ -98,6 +98,7 @@ def add_metrics(parsed_xml,stock_dict_with_ded,context_dict,metric_list,cal_dict
 
 
                         stock_dict_with_ded[statement]['metrics'] = create_dict_if_new_key(tag_name_str, stock_dict_with_ded[statement]['metrics']) 
+                        stock_dict_with_ded[statement]['metrics'][tag_name_str] = add_labels( stock_dict_with_ded[statement]['metrics'][tag_name_str],label_lookup_dict,tag_name_str) 
 
                         hasSegment = False
                         dontAdd = False
@@ -116,20 +117,19 @@ def add_metrics(parsed_xml,stock_dict_with_ded,context_dict,metric_list,cal_dict
                                 stock_dict_with_ded[statement]['metrics'][tag_name_str]['segment'][segment_name_str] = add_duration_metric(stock_dict_with_ded[statement]['metrics'][tag_name_str]['segment'][segment_name_str],context_dict,contextref,tag,tag_name_str,statement,cal_dict)
                             else:
                                 stock_dict_with_ded[statement]['metrics'][tag_name_str] = add_duration_metric(stock_dict_with_ded[statement]['metrics'][tag_name_str],context_dict,contextref,tag,tag_name_str,statement,cal_dict)
-                                stock_dict_with_ded[statement]['metrics'][tag_name_str] = add_labels( stock_dict_with_ded[statement]['metrics'][tag_name_str],label_lookup_dict,tag_name_str) 
 
                         elif 'instant' in context_dict[contextref] and dontAdd == False: #balance sheet item
                             if hasSegment:
                                 stock_dict_with_ded[statement]['metrics'][tag_name_str]['segment'][segment_name_str] = add_value_to_metric(stock_dict_with_ded[statement]['metrics'][tag_name_str]['segment'][segment_name_str],tag,context_dict[contextref]['instant'],cal_dict,tag_name_str,statement,'instant') 
                             else:
                                 stock_dict_with_ded[statement]['metrics'][tag_name_str] = add_value_to_metric(stock_dict_with_ded[statement]['metrics'][tag_name_str],tag,context_dict[contextref]['instant'],cal_dict,tag_name_str,statement,'instant') 
-                                stock_dict_with_ded[statement]['metrics'][tag_name_str] = add_labels( stock_dict_with_ded[statement]['metrics'][tag_name_str],label_lookup_dict,tag_name_str) 
     
     return stock_dict_with_ded 
 
 def add_labels(stock_dict_up_to_labels,label_lookup_dict,tag_name_str):
-    stock_dict_up_to_labels = create_dict_if_new_key('labels', stock_dict_up_to_labels) 
-    stock_dict_up_to_labels['labels'] = label_lookup_dict[tag_name_str]['labels']
+    if 'labels' not in stock_dict_up_to_labels:  
+        stock_dict_up_to_labels['labels'] = {} 
+        stock_dict_up_to_labels['labels'] = label_lookup_dict[tag_name_str]['labels']
     return stock_dict_up_to_labels 
 
 
@@ -341,8 +341,6 @@ def parse_lab_xml(soup_lab,stock_dict_with_ded,metric_list):
                         lab_loc_arc_dict[statement_name][metric] = tag['xlink:label']  
 
         elif tag.name in ['link:labelarc','labelarc']:
-#            if tag['xlink:from'] == 'loc_us-gaap_StatementOfFinancialPositionAbstract_D8B71A20A71BCC3CB4D050307C091C11':
-#                print('here')
             labelarc_dict[tag['xlink:from']] = tag['xlink:to'] 
         elif tag.name in ['link:label','label']:
             linklabel_dict[tag['xlink:label']] = tag.get_text()  
