@@ -131,6 +131,7 @@ def stock_list_dict_to_dataframe(stock_dict_with_ded,document_end_date,document_
 
         for period_type in [freq,'instant']: 
             if period_type in stock_list_dict[metric][0]:
+                df_statement.loc[df_statement.index==metric,'period_type'] = period_type 
                 for metric_date in stock_list_dict[metric][0][period_type]:
                     df_statement.loc[df_statement.index==metric,metric_date] =  stock_list_dict[metric][0][period_type][metric_date]
         
