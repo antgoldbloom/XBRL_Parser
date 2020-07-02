@@ -16,7 +16,6 @@ def load_statements_into_dict(statement,csv_path,ticker,latest_ded,logging):
 
     missing_list = []
     for dirname, _, filenames in os.walk(f"{csv_path}{ticker}"):
-        #if '(10-Q)' in dirname:
         missing_list.append(dirname)
         for filename in filenames:
             if statement[statement.lower().find('statement'):].lower() == filename[filename.lower().find('statement'):].lower(): 
@@ -89,20 +88,27 @@ def populate_time_series(df_dict,date_statement_list,logging):
             master_df = master_df.merge(tmp_df[new_columns],left_index=True,right_index=True,how='outer')
             master_df.loc[master_df.index.isin(tmp_df.index),master_df.columns.isin(tmp_df)] = tmp_df
 
-    master_df.index.name = df_dict[date_statement_list[0]].index.name #Preserve index name (it drops if you merge tables with different index names) 
+    master_df = adjust_for_tag_changes(master_df,date_statement_list,logging)
+    master_df = adjust_for_10k(df_dict, list_10k, master_df)
+    master_df = reorder_dataframe(master_df,date_statement_list,logging)
+    master_df = add_labels_to_timeseries(master_df,df_dict,date_statement_list)
 
-    list_10k = sorted(np.unique(np.concatenate(list_10k).flat),reverse=True)
-    master_df = master_df.reindex(sorted(master_df.columns,reverse=True),axis=1)
+    return master_df
 
+def adjust_for_10k(df_dict, list_10k, master_df):
     for item_10k in list_10k:
         df_dict_key = f"{item_10k} (10-K)"
 
         if df_dict_key in df_dict:
             tmp_df = df_dict[df_dict_key]
             tmp_df = tmp_df[tmp_df['period_type'] == 'ytd'] 
+            tmp_df = tmp_df[tmp_df.index.isin(master_df.index)]
             item_10k_index = list(master_df.columns).index(item_10k)
         
             master_df.loc[tmp_df.index,item_10k] = master_df.loc[tmp_df.index,item_10k] - master_df.loc[tmp_df.index,list(master_df.columns)[item_10k_index+1:item_10k_index+4]].sum(axis=1) 
+
+    list_10k = sorted(np.unique(np.concatenate(list_10k).flat),reverse=True)
+    master_df = master_df.reindex(sorted(master_df.columns,reverse=True),axis=1)
 
     return master_df
 
@@ -121,6 +127,8 @@ def adjust_for_tag_changes(master_df,date_statement_list,logging):
 
     for metric in drop_list:
         master_df = master_df.drop(metric,axis=0)
+
+
 
     return master_df
 
@@ -162,6 +170,45 @@ def check_dataframe(statement,master_df,logging):
         print(warning_message)
         logging.warning(warning_message)
 
+def which_label_types_in_dataframe(df):
+    label_list = []
+    label_types = ['label','terseLabel','verboseLabel']
+    for label_type in label_types: 
+        if label_type in df.columns:
+            label_list.append(label_type)
+    return label_list
+
+def add_labels_to_timeseries(master_df,df_dict,date_statement_list):
+
+    for ds in date_statement_list:
+
+        label_list = which_label_types_in_dataframe(df_dict[ds]) 
+
+        if ds ==date_statement_list[0]:
+            for label in ['label','verboseLabel','terseLabel']: 
+                master_df[label] = None
+            master_df.loc[ df_dict[ds].index,label_list] = df_dict[ds].loc[:,label_list]
+        else:
+            labels_to_find_index = df_dict[ds][df_dict[ds].index.isin(labels_to_find_list)].index
+            master_df.loc[labels_to_find_index,label_list] = df_dict[ds].loc[labels_to_find_index,label_list] 
+
+        label_list = which_label_types_in_dataframe(master_df)
+
+        if master_df[label_list].notna().any(axis=1).all() == False: #if any labels are still NA
+            labels_to_find_list = master_df[master_df[label_list].notna().any(axis=1) == False].index
+        else:
+            break
+
+            
+    master_df.loc[master_df['label'].isna(),'label'] = master_df.loc[master_df['label'].isna(),'terseLabel']  
+    master_df.loc[master_df['label'].isna(),'label'] = master_df.loc[master_df['label'].isna(),'verboseLabel']  
+    master_df['xbrl_tag'] = master_df.index 
+    master_df = master_df.set_index(['label','xbrl_tag']) 
+       
+    for label in which_label_types_in_dataframe(master_df):
+        master_df = master_df.drop(label,axis=1)
+    
+    return master_df
 
     
 csv_path = '../data/csv/'
@@ -185,13 +232,9 @@ for dirname, _, filenames in os.walk(f"{csv_path}{ticker}/{latest_ded}"):
     for statement in filenames:
         
         if 'Statement' in statement:
-
-
             df_dict = load_statements_into_dict(statement,csv_path,ticker,latest_ded,logging)
             date_statement_list = sorted(list(df_dict.keys()),reverse=True)
             master_df = populate_time_series(df_dict,date_statement_list,logging)
-            master_df = adjust_for_tag_changes(master_df,date_statement_list,logging)
-            master_df = reorder_dataframe(master_df,date_statement_list,logging)
             check_dataframe(statement,master_df,logging)
 
             master_df.to_csv(f"{timeseries_path}{ticker}/{statement}")

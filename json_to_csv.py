@@ -188,7 +188,7 @@ csv_path = '../data/csv/'
 log_path = '../data/logs/'
 
 file_list = glob.glob(f"{json_path}/*.json") 
-file_list = [f"{json_path}AMZN.json"]
+#file_list = [f"{json_path}AMZN.json"]
 
 
 logfilename = f"{log_path}json_to_csv_{datetime.now().strftime('%Y_%m_%d__%H_%M')}.log"
