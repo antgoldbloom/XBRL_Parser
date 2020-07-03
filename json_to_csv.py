@@ -214,7 +214,6 @@ for file_str in file_list:
 
         for statement in stock_dict[document_end_date]['statements']: 
 
-
             stock_list_dict_to_dataframe(stock_dict[document_end_date]['statements'],document_end_date,stock_dict[document_end_date]['document_type'],statement,freq,logging)
  
     ticker_time = f"{time() - start_time}"

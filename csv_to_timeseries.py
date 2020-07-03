@@ -14,24 +14,27 @@ def load_statements_into_dict(statement,csv_path,ticker,latest_ded,logging):
 
     df_dict = {}
 
+
     missing_list = []
     for dirname, _, filenames in os.walk(f"{csv_path}{ticker}"):
-        missing_list.append(dirname)
         for filename in filenames:
-            if statement[statement.lower().find('statement'):].lower() == filename[filename.lower().find('statement'):].lower(): 
-                full_path = os.path.join(dirname,filename)
-                df_dict[full_path[17:34]] = pd.read_csv(full_path,index_col=[0])
-                missing_list.remove(dirname)
+            if (filename[-4:] == '.csv'): 
+                missing_list.append(dirname)
+                if statement.lower() == filename.lower(): 
+                    full_path = os.path.join(dirname,filename)
+                    df_dict[full_path[17:34]] = pd.read_csv(full_path,index_col=[0])
+                    missing_list.remove(dirname)
 
-    #df_dict = fill_gaps_and_log_missing(df_dict,missing_list,logging,statement)
+    missing_list = np.unique(missing_list)
 
+    df_dict = fill_gaps_and_log_missing(df_dict,missing_list,logging,statement,latest_ded)
                 
     return df_dict
 
 
-def fill_gaps_and_log_missing(df_dict,missing_list,logging,statement):
+def fill_gaps_and_log_missing(df_dict,missing_list,logging,statement,latest_ded):
 
-    reference_df = df_dict[latest_ded[:10]]
+    reference_df = df_dict[latest_ded]
 
     additional_found_statements = []
     
@@ -47,14 +50,16 @@ def fill_gaps_and_log_missing(df_dict,missing_list,logging,statement):
 
         if max_overlap > 0.6: #might need to tune this number
             full_path = os.path.join(dirname,most_likely_statement_match)
-            df_dict[full_path[17:27]] = pd.read_csv(full_path,index_col=[0])
+            df_dict[full_path[17:34]] = pd.read_csv(full_path,index_col=[0])
 
             additional_found_statements.append(dirname) 
 
+    additional_found_statements = np.unique(additional_found_statements)
+    missing_list = list(missing_list)
     for dirname in additional_found_statements:
         missing_list.remove(dirname)
     
-    log_missing(missing_list,statement,logging)
+    #log_missing(missing_list,statement,logging)
 
     return df_dict 
 
@@ -68,7 +73,10 @@ def log_missing(missing_list,statement,logging):
 
 
 
-def populate_time_series(df_dict,date_statement_list,logging):
+def populate_time_series(logging,latest_ded):
+
+    df_dict = load_statements_into_dict(statement,csv_path,ticker,latest_ded,logging)
+    date_statement_list = sorted(list(df_dict.keys()),reverse=True)
 
     list_10k = []
 
@@ -83,15 +91,19 @@ def populate_time_series(df_dict,date_statement_list,logging):
         if ds == date_statement_list[0]:
             master_df = tmp_df
         else:
-            #df_dict.
             new_columns = tmp_df.columns.difference(master_df.columns)
             master_df = master_df.merge(tmp_df[new_columns],left_index=True,right_index=True,how='outer')
             master_df.loc[master_df.index.isin(tmp_df.index),master_df.columns.isin(tmp_df)] = tmp_df
 
     master_df = adjust_for_tag_changes(master_df,date_statement_list,logging)
-    master_df = adjust_for_10k(df_dict, list_10k, master_df)
-    master_df = reorder_dataframe(master_df,date_statement_list,logging)
+    
+    if len(list_10k) > 0:
+        master_df = adjust_for_10k(df_dict, list_10k, master_df)
+
+    master_df = reorder_dataframe(master_df,df_dict,date_statement_list,logging)
     master_df = add_labels_to_timeseries(master_df,df_dict,date_statement_list)
+
+    check_dataframe(statement,master_df,date_statement_list,logging)
 
     return master_df
 
@@ -113,6 +125,8 @@ def adjust_for_10k(df_dict, list_10k, master_df):
     return master_df
 
 def adjust_for_tag_changes(master_df,date_statement_list,logging): 
+
+
     drop_list = []    
     tags_from_latest_statement = master_df[(master_df.isna().any(axis=1) & master_df[date_statement_list[0][0:10]].notna())]
     for metric in tags_from_latest_statement.index:
@@ -125,7 +139,7 @@ def adjust_for_tag_changes(master_df,date_statement_list,logging):
                     master_df.loc[metric,master_df.columns[master_df[master_df.index == metric].isna().iloc[0].to_list()]] = master_df.loc[metric_match,master_df.columns[master_df[master_df.index == metric].isna().iloc[0].to_list()]] 
                     drop_list.append(metric_match)
 
-    for metric in drop_list:
+    for metric in np.unique(drop_list):
         master_df = master_df.drop(metric,axis=0)
 
 
@@ -137,11 +151,11 @@ def adjust_for_tag_changes(master_df,date_statement_list,logging):
 
 
 
-def reorder_dataframe(master_df,date_list,logging):
-    latest_filing_mask = master_df.index.isin(df_dict[date_list[0]].index)
+def reorder_dataframe(master_df,df_dict,date_statement_list,logging):
+    latest_filing_mask = master_df.index.isin(df_dict[date_statement_list[0]].index)
 
     master_df_tmp = master_df.loc[latest_filing_mask,:]
-    master_df_tmp = master_df_tmp.reindex(df_dict[date_list[0]].index)
+    master_df_tmp = master_df_tmp.reindex(df_dict[date_statement_list[0]].index)
     master_df_tmp = master_df_tmp.append(master_df.loc[~latest_filing_mask,:])
 
     #master_df_tmp = master_df_tmp.reindex(date_list,axis=1)
@@ -156,19 +170,30 @@ def pick_latest_statement(csv_path,ticker):
     
     return ded_dict[max(ded_dict.keys())]
 
-def check_dataframe(statement,master_df,logging):
-    expected_columns = round((datetime.strptime(master_df.columns.max(), "%Y-%m-%d")-datetime.strptime(master_df.columns.min(), "%Y-%m-%d")).days/(365/4))
-    actual_columns = len(master_df.columns)
-    if expected_columns > actual_columns:
-        warning_message = f'Expecting {expected_columns} but only found {actual_columns} in {statement}'
-        logging.warning(warning_message)
-        print(warning_message)
+def check_dataframe(statement,master_df,date_statement_list,logging):
 
-    na_count = round((len(master_df)-master_df.count()).sum()/(len(master_df)*len(master_df.columns)),2)
-    if na_count > 0.3:
-        warning_message = f"{statement} has an na percentage of {na_count}"
-        print(warning_message)
-        logging.warning(warning_message)
+    print(statement)
+    logging.info(statement)
+
+    expected_columns = round((datetime.strptime(master_df.columns.max(), "%Y-%m-%d")-datetime.strptime(master_df.columns.min(), "%Y-%m-%d")).days/(365/4))+1
+    actual_columns = len(master_df.columns)
+    if (expected_columns - actual_columns) >= 0:  
+        message = f'Discontinuities estimate: {expected_columns-actual_columns}'
+        logging.info(message)
+        print(message)
+
+    na_percentage = round(100*(len(master_df)-master_df.count()).sum()/(len(master_df)*len(master_df.columns)),2)
+    message = f"NA percentage:  {na_percentage}"
+    print(message)
+    logging.info(message)
+
+    message = f"Number of periods: {actual_columns}" 
+    print(message)
+    logging.info(message)
+
+    message = f"Number of metrics: {len(master_df)}" 
+    print(message)
+    logging.info(message)
 
 def which_label_types_in_dataframe(df):
     label_list = []
@@ -231,13 +256,10 @@ latest_ded = pick_latest_statement(csv_path,ticker)
 for dirname, _, filenames in os.walk(f"{csv_path}{ticker}/{latest_ded}"):
     for statement in filenames:
         
-        if 'Statement' in statement:
-            df_dict = load_statements_into_dict(statement,csv_path,ticker,latest_ded,logging)
-            date_statement_list = sorted(list(df_dict.keys()),reverse=True)
-            master_df = populate_time_series(df_dict,date_statement_list,logging)
-            check_dataframe(statement,master_df,logging)
 
-            master_df.to_csv(f"{timeseries_path}{ticker}/{statement}")
+        master_df = populate_time_series(logging,latest_ded)
+
+        master_df.to_csv(f"{timeseries_path}{ticker}/{statement}")
         
 print(f"Total: time: {time() - overall_start_time}")
 logging.info(f"Total: time: {time() - overall_start_time}")
