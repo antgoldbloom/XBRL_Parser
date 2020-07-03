@@ -172,26 +172,34 @@ def pick_latest_statement(csv_path,ticker):
 
 def check_dataframe(statement,master_df,date_statement_list,logging):
 
-    print(statement)
-    logging.info(statement)
+    print_and_log(logging,statement)
 
     expected_columns = round((datetime.strptime(master_df.columns.max(), "%Y-%m-%d")-datetime.strptime(master_df.columns.min(), "%Y-%m-%d")).days/(365/4))+1
     actual_columns = len(master_df.columns)
     if (expected_columns - actual_columns) >= 0:  
         message = f'Discontinuities estimate: {expected_columns-actual_columns}'
-        logging.info(message)
-        print(message)
+    sequential_quarters = 0
+    for i in range(1,len(master_df.columns)):
+        diff = datetime.strptime(master_df.columns[i-1],'%Y-%m-%d') - datetime.strptime(master_df.columns[i],'%Y-%m-%d')
+        if diff.days > 85 and diff.days < 95:
+            sequential_quarters +=1
+        else:
+            break
+
+    message = f"Estimate of sequential quarters: {sequential_quarters}"
+    print_and_log(logging,message)
+
+    message = f"Number of periods: {actual_columns}" 
+    print_and_log(logging,message)
+
+    message = f"Number of metrics: {len(master_df)}" 
+    print_and_log(logging,message)
 
     na_percentage = round(100*(len(master_df)-master_df.count()).sum()/(len(master_df)*len(master_df.columns)),2)
     message = f"NA percentage:  {na_percentage}"
-    print(message)
-    logging.info(message)
+    print_and_log(logging,message)
 
-    message = f"Number of periods: {actual_columns}" 
-    print(message)
-    logging.info(message)
-
-    message = f"Number of metrics: {len(master_df)}" 
+def print_and_log(logging,message):
     print(message)
     logging.info(message)
 
