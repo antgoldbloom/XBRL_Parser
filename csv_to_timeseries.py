@@ -243,7 +243,29 @@ def add_labels_to_timeseries(master_df,df_dict,date_statement_list):
     
     return master_df
 
+
+def save_file(master_df,timeseries_path, ticker,statement,logging):
+
+    dash_list = [m.start() for m in re.finditer('-', statement)]
+    if len(dash_list) >= 2: 
+        filetype = statement[dash_list[0]+2:dash_list[1]-1]
+        statement_name = statement[dash_list[1]+2:]
+    else:
+        message = f'Statement type could not be infered for {statement}'
+        logging.warning(message) 
+        print(message)
+        statement_name = statement 
+        filetype = 'Other'
+
+    statement_folder = f"{timeseries_path}{ticker}/{filetype}/"
+    Path(statement_folder).mkdir(parents=True, exist_ok=True)
+
+    master_df.to_csv(f"{statement_folder}{statement_name}")
     
+
+
+#### RUN CODE
+
 csv_path = '../data/csv/'
 log_path = '../data/logs/'
 
@@ -263,11 +285,10 @@ latest_ded = pick_latest_statement(csv_path,ticker)
 
 for dirname, _, filenames in os.walk(f"{csv_path}{ticker}/{latest_ded}"):
     for statement in filenames:
-        
 
         master_df = populate_time_series(logging,latest_ded)
-
-        master_df.to_csv(f"{timeseries_path}{ticker}/{statement}")
+        save_file(master_df,timeseries_path, ticker,statement,logging)
         
 print(f"Total: time: {time() - overall_start_time}")
 logging.info(f"Total: time: {time() - overall_start_time}")
+
