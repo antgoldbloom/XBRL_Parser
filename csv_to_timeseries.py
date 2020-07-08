@@ -8,60 +8,72 @@ import logging
 from datetime import datetime
 from time import time
 
+
+import string
+from sklearn.metrics.pairwise import cosine_similarity
+from sklearn.feature_extraction.text import CountVectorizer
+from nltk.corpus import stopwords
+stopwords = stopwords.words('english')
+
 pd.set_option('max_columns', 50)
+
+
+
+def clean_string(text):
+
+    text = text[:-4] 
+    text = ''.join([word for word in text if word not in string.punctuation])
+    text = text.lower()
+    text = ' '.join([word for word in text.split() if word not in stopwords])
+    return text
+
+def cosine_sim_vectors(vec1,vec2):
+    vec1 = vec1.reshape(1,-1)
+    vec2 = vec2.reshape(1,-1)
+    return cosine_similarity(vec1,vec2)[0][0]
+
+def calculate_csim(statement_names):
+    cleaned_statement_names = list(map(clean_string,statement_names))
+    vectorizer = CountVectorizer().fit_transform(cleaned_statement_names)
+    statement_name_vectors = vectorizer.toarray()
+    csim = cosine_sim_vectors(statement_name_vectors[0],statement_name_vectors[1]) 
+    return csim
 
 def load_statements_into_dict(statement,csv_path,ticker,latest_ded,logging):
 
     df_dict = {}
-
+    df_dict[latest_ded] = pd.read_csv(os.path.join(f"{csv_path}{ticker}/{latest_ded}",statement),index_col=[0])
 
     missing_list = []
     for dirname, _, filenames in os.walk(f"{csv_path}{ticker}"):
+        max_overlap = 0
         for filename in filenames:
             if (filename[-4:] == '.csv'): 
                 missing_list.append(dirname)
-                if statement.lower() == filename.lower(): 
-                    full_path = os.path.join(dirname,filename)
-                    df_dict[full_path[17:34]] = pd.read_csv(full_path,index_col=[0])
-                    missing_list.remove(dirname)
 
-    missing_list = np.unique(missing_list)
-
-    df_dict = fill_gaps_and_log_missing(df_dict,missing_list,logging,statement,latest_ded)
-                
-    return df_dict
-
-
-def fill_gaps_and_log_missing(df_dict,missing_list,logging,statement,latest_ded):
-
-    reference_df = df_dict[latest_ded]
-
-    additional_found_statements = []
+                csim = calculate_csim([statement, filename])
+                if csim == 1:
+                    most_likely_statement_match = filename 
+                    max_overlap = 1
+                    break #if filenames map don't even bother looking for column overlap
+                elif csim > 0.3:
     
-    for dirname in missing_list:
-        max_overlap = 0
-        for filename in os.listdir(dirname):
-            comp_df = pd.read_csv(os.path.join(dirname,filename),index_col=[0])
-            overlap_percentage = len(set(reference_df.index).intersection(comp_df.index))/len(reference_df) 
+                    comp_df = pd.read_csv(os.path.join(dirname,filename),index_col=[0])
+                    overlap_percentage = len(set(df_dict[latest_ded].index).intersection(comp_df.index))/len(df_dict[latest_ded])  
+                
+                    if overlap_percentage > max_overlap:
+                        max_overlap = overlap_percentage
+                        most_likely_statement_match = filename
 
-            if overlap_percentage > max_overlap:
-                max_overlap = overlap_percentage
-                most_likely_statement_match = filename 
-
-        if max_overlap > 0.6: #might need to tune this number
+        if max_overlap > 0.6:
             full_path = os.path.join(dirname,most_likely_statement_match)
             df_dict[full_path[17:34]] = pd.read_csv(full_path,index_col=[0])
+            missing_list.remove(dirname)
 
-            additional_found_statements.append(dirname) 
+    missing_list = np.unique(missing_list)
+    log_missing(missing_list,statement,logging)
 
-    additional_found_statements = np.unique(additional_found_statements)
-    missing_list = list(missing_list)
-    for dirname in additional_found_statements:
-        missing_list.remove(dirname)
-    
-    #log_missing(missing_list,statement,logging)
-
-    return df_dict 
+    return df_dict
 
 def log_missing(missing_list,statement,logging):
         
@@ -70,13 +82,7 @@ def log_missing(missing_list,statement,logging):
         print(warning_message) 
         logging.warning(warning_message) 
 
-
-
-
-def populate_time_series(logging,latest_ded):
-
-    df_dict = load_statements_into_dict(statement,csv_path,ticker,latest_ded,logging)
-    date_statement_list = sorted(list(df_dict.keys()),reverse=True)
+def populate_master_dataframe(date_statement_list,df_dict,logging):
 
     list_10k = []
 
@@ -95,40 +101,52 @@ def populate_time_series(logging,latest_ded):
             master_df = master_df.merge(tmp_df[new_columns],left_index=True,right_index=True,how='outer')
             master_df.loc[master_df.index.isin(tmp_df.index),master_df.columns.isin(tmp_df)] = tmp_df
 
-    master_df = adjust_for_tag_changes(master_df,date_statement_list,logging)
-    
-    if len(list_10k) > 0:
-        master_df = adjust_for_10k(df_dict, list_10k, master_df)
+    master_df = adjust_for_tag_changes_and_10k(master_df,date_statement_list,list_10k,df_dict,logging)
 
+
+    return master_df
+
+def populate_time_series(logging,latest_ded,statement,csv_path,ticker):
+
+    df_dict = load_statements_into_dict(statement,csv_path,ticker,latest_ded,logging)
+    date_statement_list = sorted(list(df_dict.keys()),reverse=True)
+
+    master_df = populate_master_dataframe(date_statement_list,df_dict,logging) 
     master_df = reorder_dataframe(master_df,df_dict,date_statement_list,logging)
     master_df = add_labels_to_timeseries(master_df,df_dict,date_statement_list)
-
     check_dataframe(statement,master_df,date_statement_list,logging)
 
     return master_df
 
-def adjust_for_10k(df_dict, list_10k, master_df):
+def adjust_for_10k(df_dict, list_10k, master_df,tag_map):
+    list_10k = sorted(np.unique(np.concatenate(list_10k).flat),reverse=True)
+    master_df = master_df.reindex(sorted(master_df.columns,reverse=True),axis=1)
+
     for item_10k in list_10k:
         df_dict_key = f"{item_10k} (10-K)"
 
         if df_dict_key in df_dict:
             tmp_df = df_dict[df_dict_key]
+            tmp_df = tmp_df.rename(index=tag_map)
             tmp_df = tmp_df[tmp_df['period_type'] == 'ytd'] 
             tmp_df = tmp_df[tmp_df.index.isin(master_df.index)]
-            item_10k_index = list(master_df.columns).index(item_10k)
-        
-            master_df.loc[tmp_df.index,item_10k] = master_df.loc[tmp_df.index,item_10k] - master_df.loc[tmp_df.index,list(master_df.columns)[item_10k_index+1:item_10k_index+4]].sum(axis=1) 
+            for date_col in [date_col for date_col in df_dict[df_dict_key].columns if re.match('[0-9]{4}-[0-9]{2}-[0-9]{2}',date_col)]: 
+                if date_col in list_10k:
+                    date_col_10k_index = (list(master_df.columns).index(date_col))
 
-    list_10k = sorted(np.unique(np.concatenate(list_10k).flat),reverse=True)
-    master_df = master_df.reindex(sorted(master_df.columns,reverse=True),axis=1)
+                    sequential_quarters = count_sequential_quarters(list(master_df.columns)[date_col_10k_index:(date_col_10k_index+4)])
+                    if sequential_quarters == 3:
+                        master_df.loc[tmp_df.index,date_col] = tmp_df[date_col] - master_df.loc[tmp_df.index,list(master_df.columns)[date_col_10k_index+1:date_col_10k_index+4]].sum(axis=1) 
+                    else:
+                        master_df.loc[tmp_df.index,date_col] = None 
 
     return master_df
 
-def adjust_for_tag_changes(master_df,date_statement_list,logging): 
+def adjust_for_tag_changes_and_10k(master_df,date_statement_list,list_10k,df_dict,logging): 
 
-
-    drop_list = []    
-    tags_from_latest_statement = master_df[(master_df.isna().any(axis=1) & master_df[date_statement_list[0][0:10]].notna())]
+    tag_map = {} 
+    
+    tags_from_latest_statement = master_df[(master_df.isna().any(axis=1) & master_df[master_df.columns.max()].notna())]
     for metric in tags_from_latest_statement.index:
         for metric_match in master_df[~master_df.index.isin(tags_from_latest_statement.index)].index:
 
@@ -137,17 +155,16 @@ def adjust_for_tag_changes(master_df,date_statement_list,logging):
 
             if (agreement_series.all() == True) and len(agreement_series > 1):
                     master_df.loc[metric,master_df.columns[master_df[master_df.index == metric].isna().iloc[0].to_list()]] = master_df.loc[metric_match,master_df.columns[master_df[master_df.index == metric].isna().iloc[0].to_list()]] 
-                    drop_list.append(metric_match)
+                    tag_map[metric_match] = metric
 
-    for metric in np.unique(drop_list):
+    for metric in np.unique(tag_map.keys()):
         master_df = master_df.drop(metric,axis=0)
 
+    if len(list_10k) > 0:
+        master_df = adjust_for_10k(df_dict, list_10k, master_df,tag_map)
 
 
     return master_df
-
-#def adjust_by_matching_labels(master_df,df_dict):
-
 
 
 
@@ -158,7 +175,7 @@ def reorder_dataframe(master_df,df_dict,date_statement_list,logging):
     master_df_tmp = master_df_tmp.reindex(df_dict[date_statement_list[0]].index)
     master_df_tmp = master_df_tmp.append(master_df.loc[~latest_filing_mask,:])
 
-    #master_df_tmp = master_df_tmp.reindex(date_list,axis=1)
+    #master_df_tmp = master_df_tmp.reindex(date_statement_list,axis=1)
 
 
     return master_df_tmp
@@ -170,6 +187,20 @@ def pick_latest_statement(csv_path,ticker):
     
     return ded_dict[max(ded_dict.keys())]
 
+def count_sequential_quarters(quarter_list,log_missing=False,logging=None):
+    sequential_quarters = 0
+    for i in range(1,len(quarter_list)):
+        diff = datetime.strptime(quarter_list[i-1],'%Y-%m-%d') - datetime.strptime(quarter_list[i],'%Y-%m-%d')
+        if diff.days > 85 and diff.days < 95:
+            sequential_quarters +=1
+        else:
+            if log_missing:
+                message = f"Missing quarter between {quarter_list[i-1]} and {quarter_list[i]}"
+                print_and_log(logging, message, True) 
+            else:
+                break   
+    return sequential_quarters 
+
 def check_dataframe(statement,master_df,date_statement_list,logging):
 
     print_and_log(logging,statement)
@@ -178,14 +209,8 @@ def check_dataframe(statement,master_df,date_statement_list,logging):
     actual_columns = len(master_df.columns)
     if (expected_columns - actual_columns) >= 0:  
         message = f'Discontinuities estimate: {expected_columns-actual_columns}'
-    sequential_quarters = 0
-    for i in range(1,len(master_df.columns)):
-        diff = datetime.strptime(master_df.columns[i-1],'%Y-%m-%d') - datetime.strptime(master_df.columns[i],'%Y-%m-%d')
-        if diff.days > 85 and diff.days < 95:
-            sequential_quarters +=1
-        else:
-            break
 
+    sequential_quarters = count_sequential_quarters(master_df.columns,True,logging)
     message = f"Estimate of sequential quarters: {sequential_quarters}"
     print_and_log(logging,message)
 
@@ -199,46 +224,51 @@ def check_dataframe(statement,master_df,date_statement_list,logging):
     message = f"NA percentage:  {na_percentage}"
     print_and_log(logging,message)
 
-def print_and_log(logging,message):
-    print(message)
-    logging.info(message)
+    master_df
 
-def which_label_types_in_dataframe(df):
-    label_list = []
-    label_types = ['label','terseLabel','verboseLabel']
-    for label_type in label_types: 
-        if label_type in df.columns:
-            label_list.append(label_type)
-    return label_list
+    
+
+def print_and_log(logging,message,warning=False):
+    print(message)
+    if warning:
+        logging.warning(message)
+    else:
+        logging.info(message)
+
 
 def add_labels_to_timeseries(master_df,df_dict,date_statement_list):
 
     for ds in date_statement_list:
 
-        label_list = which_label_types_in_dataframe(df_dict[ds]) 
+        label_list = [l for l in df_dict[ds].columns if 'label' in l .lower()]
+
+        for label in label_list:
+            if label not in master_df.columns:
+                master_df[label] = None
 
         if ds ==date_statement_list[0]:
-            for label in ['label','verboseLabel','terseLabel']: 
-                master_df[label] = None
             master_df.loc[ df_dict[ds].index,label_list] = df_dict[ds].loc[:,label_list]
         else:
             labels_to_find_index = df_dict[ds][df_dict[ds].index.isin(labels_to_find_list)].index
             master_df.loc[labels_to_find_index,label_list] = df_dict[ds].loc[labels_to_find_index,label_list] 
 
-        label_list = which_label_types_in_dataframe(master_df)
+        label_list = [l for l in master_df.columns if 'label' in l .lower()] 
 
         if master_df[label_list].notna().any(axis=1).all() == False: #if any labels are still NA
             labels_to_find_list = master_df[master_df[label_list].notna().any(axis=1) == False].index
         else:
             break
 
-            
-    master_df.loc[master_df['label'].isna(),'label'] = master_df.loc[master_df['label'].isna(),'terseLabel']  
-    master_df.loc[master_df['label'].isna(),'label'] = master_df.loc[master_df['label'].isna(),'verboseLabel']  
+    if 'label' not in master_df.columns:
+        master_df['label'] = None
+
+    for label in label_list:
+        master_df.loc[master_df['label'].isna(),'label'] = master_df.loc[master_df['label'].isna(),label]  
+
     master_df['xbrl_tag'] = master_df.index 
     master_df = master_df.set_index(['label','xbrl_tag']) 
        
-    for label in which_label_types_in_dataframe(master_df):
+    for label in [l for l in master_df.columns if 'label' in l .lower()]: 
         master_df = master_df.drop(label,axis=1)
     
     return master_df
@@ -270,25 +300,32 @@ csv_path = '../data/csv/'
 log_path = '../data/logs/'
 
 timeseries_path = '../data/timeseries/'
-ticker = 'AMZN'
 
-logfilename = f"{log_path}csv_to_timeseries_{datetime.now().strftime('%Y_%m_%d__%H_%M')}.log"
-logging.basicConfig(filename=logfilename, filemode='w', format='%(levelname)s - %(message)s',level=logging.INFO)
-
-overall_start_time = time()
-
-shutil.rmtree(f"{timeseries_path}{ticker}", ignore_errors=True, onerror=None)  #remove if exists 
-Path(f"{timeseries_path}{ticker}").mkdir(parents=True, exist_ok=True)
-
-latest_ded = pick_latest_statement(csv_path,ticker)
+ticker_list = next(os.walk(csv_path))[1]
+ticker_list = ['ZG'] 
 
 
-for dirname, _, filenames in os.walk(f"{csv_path}{ticker}/{latest_ded}"):
-    for statement in filenames:
 
-        master_df = populate_time_series(logging,latest_ded)
-        save_file(master_df,timeseries_path, ticker,statement,logging)
+for ticker in ticker_list:
+
+    print(ticker)
+
+    logfilename = f"{log_path}csv_to_timeseries_{datetime.now().strftime('%Y_%m_%d__%H_%M')}.log"
+    logging.basicConfig(filename=logfilename, filemode='w', format='%(levelname)s - %(message)s',level=logging.INFO)
+
+    overall_start_time = time()
+
+    shutil.rmtree(f"{timeseries_path}{ticker}", ignore_errors=True, onerror=None)  #remove if exists 
+    Path(f"{timeseries_path}{ticker}").mkdir(parents=True, exist_ok=True)
+
+    latest_ded = pick_latest_statement(csv_path,ticker)
+
+
+    for dirname, _, filenames in os.walk(f"{csv_path}{ticker}/{latest_ded}"):
+        for statement in filenames:
+            master_df = populate_time_series(logging,latest_ded,statement, csv_path, ticker)
+            save_file(master_df,timeseries_path, ticker,statement,logging)
         
-print(f"Total: time: {time() - overall_start_time}")
-logging.info(f"Total: time: {time() - overall_start_time}")
+    print(f"Total: time: {time() - overall_start_time}")
+    logging.info(f"Total: time: {time() - overall_start_time}")
 

@@ -124,10 +124,9 @@ def stock_list_dict_to_dataframe(stock_dict_with_ded,document_end_date,document_
     for metric in stock_list_dict:
 
         if 'labels' in stock_list_dict[metric][0]:
-            label_keys = ['label','terseLabel', 'verboseLabel']
+            label_keys =  stock_list_dict[metric][0]['labels'].keys()
             for key in label_keys:
-                if key in stock_list_dict[metric][0]['labels']: 
-                    df_statement.loc[df_statement.index==metric,key] =  stock_list_dict[metric][0]['labels'][key]  
+                df_statement.loc[df_statement.index==metric,key] =  stock_list_dict[metric][0]['labels'][key]  
 
         for period_type in [freq,'instant']: 
             if period_type in stock_list_dict[metric][0]:
@@ -182,8 +181,8 @@ json_path = '../data/json/'
 csv_path = '../data/csv/'
 log_path = '../data/logs/'
 
-file_list = glob.glob(f"{json_path}/*.json") 
-#file_list = [f"{json_path}AMZN.json"]
+#file_list = glob.glob(f"{json_path}/*.json") 
+file_list = [f"{json_path}AMZN.json"]
 
 
 logfilename = f"{log_path}json_to_csv_{datetime.now().strftime('%Y_%m_%d__%H_%M')}.log"
