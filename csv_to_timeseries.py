@@ -55,7 +55,7 @@ def load_statements_into_dict(statement,csv_path,ticker,latest_ded,logging):
                 if csim == 1:
                     most_likely_statement_match = filename 
                     max_overlap = 1
-                    break #if filenames map don't even bother looking for column overlap
+                    break #if filenames map perfectly don't even bother looking for column overlap
                 elif csim > 0.3:
     
                     comp_df = pd.read_csv(os.path.join(dirname,filename),index_col=[0])
@@ -65,9 +65,10 @@ def load_statements_into_dict(statement,csv_path,ticker,latest_ded,logging):
                         max_overlap = overlap_percentage
                         most_likely_statement_match = filename
 
-        if max_overlap > 0.6:
+        if max_overlap > 0.1: #making sure there's some non trivial overlap
             full_path = os.path.join(dirname,most_likely_statement_match)
-            df_dict[full_path[17:34]] = pd.read_csv(full_path,index_col=[0])
+            ds = re.search('[0-9]{4}-[0-9]{2}-[0-9]{2} \(10-[Q|K]\)',full_path)[0]
+            df_dict[ds] = pd.read_csv(full_path,index_col=[0])
             missing_list.remove(dirname)
 
     missing_list = np.unique(missing_list)
@@ -106,17 +107,6 @@ def populate_master_dataframe(date_statement_list,df_dict,logging):
 
     return master_df
 
-def populate_time_series(logging,latest_ded,statement,csv_path,ticker):
-
-    df_dict = load_statements_into_dict(statement,csv_path,ticker,latest_ded,logging)
-    date_statement_list = sorted(list(df_dict.keys()),reverse=True)
-
-    master_df = populate_master_dataframe(date_statement_list,df_dict,logging) 
-    master_df = reorder_dataframe(master_df,df_dict,date_statement_list,logging)
-    master_df = add_labels_to_timeseries(master_df,df_dict,date_statement_list)
-    check_dataframe(statement,master_df,date_statement_list,logging)
-
-    return master_df
 
 def adjust_for_10k(df_dict, list_10k, master_df,tag_map):
     list_10k = sorted(np.unique(np.concatenate(list_10k).flat),reverse=True)
@@ -127,9 +117,18 @@ def adjust_for_10k(df_dict, list_10k, master_df,tag_map):
 
         if df_dict_key in df_dict:
             tmp_df = df_dict[df_dict_key]
-            tmp_df = tmp_df.rename(index=tag_map)
+
+            tag_map_tmp_df_intersection = set(tag_map.keys()).intersection(tmp_df.index)
+            if len(tag_map_tmp_df_intersection) > 0:
+
+                for metric_match in tag_map_tmp_df_intersection: 
+                    for metric in tag_map[metric_match]:
+                        tmp_df.loc[metric,:] = tmp_df.loc[metric_match,:] 
+                    tmp_df = tmp_df.drop(metric_match,axis=0)
+
             tmp_df = tmp_df[tmp_df['period_type'] == 'ytd'] 
             tmp_df = tmp_df[tmp_df.index.isin(master_df.index)]
+
             for date_col in [date_col for date_col in df_dict[df_dict_key].columns if re.match('[0-9]{4}-[0-9]{2}-[0-9]{2}',date_col)]: 
                 if date_col in list_10k:
                     date_col_10k_index = (list(master_df.columns).index(date_col))
@@ -155,7 +154,9 @@ def adjust_for_tag_changes_and_10k(master_df,date_statement_list,list_10k,df_dic
 
             if (agreement_series.all() == True) and len(agreement_series > 1):
                     master_df.loc[metric,master_df.columns[master_df[master_df.index == metric].isna().iloc[0].to_list()]] = master_df.loc[metric_match,master_df.columns[master_df[master_df.index == metric].isna().iloc[0].to_list()]] 
-                    tag_map[metric_match] = metric
+                    if metric_match not in tag_map:
+                        tag_map[metric_match] = [] 
+                    tag_map[metric_match].append(metric) 
 
     for metric in np.unique(tag_map.keys()):
         master_df = master_df.drop(metric,axis=0)
@@ -293,6 +294,17 @@ def save_file(master_df,timeseries_path, ticker,statement,logging):
     master_df.to_csv(f"{statement_folder}{statement_name}")
     
 
+def populate_time_series(logging,latest_ded,statement,csv_path,ticker):
+
+    df_dict = load_statements_into_dict(statement,csv_path,ticker,latest_ded,logging)
+    date_statement_list = sorted(list(df_dict.keys()),reverse=True)
+
+    master_df = populate_master_dataframe(date_statement_list,df_dict,logging) 
+    master_df = reorder_dataframe(master_df,df_dict,date_statement_list,logging)
+    #master_df = add_labels_to_timeseries(master_df,df_dict,date_statement_list)
+    check_dataframe(statement,master_df,date_statement_list,logging)
+
+    return master_df
 
 #### RUN CODE
 
