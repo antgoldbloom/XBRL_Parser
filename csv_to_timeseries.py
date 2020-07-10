@@ -321,6 +321,7 @@ def populate_time_series(logging,latest_ded,statement,csv_path,ticker):
 
     return master_df
 
+
 #### RUN CODE
 
 csv_path = '../data/csv/'
@@ -329,16 +330,19 @@ log_path = '../data/logs/'
 timeseries_path = '../data/timeseries/'
 
 ticker_list = next(os.walk(csv_path))[1]
-ticker_list = ['ZG'] 
+ticker_list = ['ZM'] 
 
 
 
 for ticker in ticker_list:
 
-    print(ticker)
+
+
 
     logfilename = f"{log_path}csv_to_timeseries_{datetime.now().strftime('%Y_%m_%d__%H_%M')}.log"
     logging.basicConfig(filename=logfilename, filemode='w', format='%(levelname)s - %(message)s',level=logging.INFO)
+
+    print_and_log(logging,ticker)
 
     overall_start_time = time()
 
@@ -353,6 +357,6 @@ for ticker in ticker_list:
             master_df = populate_time_series(logging,latest_ded,statement, csv_path, ticker)
             save_file(master_df,timeseries_path, ticker,statement,logging)
         
-    print(f"Total: time: {time() - overall_start_time}")
-    logging.info(f"Total: time: {time() - overall_start_time}")
+    time_taken = f"Total: time: {time() - overall_start_time}"
+    print_and_log(logging,time_taken)
 
