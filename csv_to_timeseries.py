@@ -46,10 +46,10 @@ def load_statements_into_dict(statement,csv_path,ticker,latest_ded,logging):
 
     missing_list = []
     for dirname, _, filenames in os.walk(f"{csv_path}{ticker}"):
+        missing_list.append(dirname)
         max_overlap = 0
         for filename in filenames:
             if (filename[-4:] == '.csv'): 
-                missing_list.append(dirname)
 
                 csim = calculate_csim([statement, filename])
                 if csim == 1:
@@ -72,14 +72,17 @@ def load_statements_into_dict(statement,csv_path,ticker,latest_ded,logging):
             missing_list.remove(dirname)
 
     missing_list = np.unique(missing_list)
-    log_missing(missing_list,statement,logging)
+    log_missing(missing_list,statement,csv_path, ticker,logging)
 
     return df_dict
 
-def log_missing(missing_list,statement,logging):
+def log_missing(missing_list,statement,csv_path,ticker,logging):
         
+    missing_list = list(missing_list)
+    missing_list.remove(f"{csv_path}{ticker}")
+
     for dirname in missing_list:
-        warning_message = f"no {statement} equivalent found in {dirname}"
+        warning_message = f"{statement} equivalent not found in {dirname}"
         print(warning_message) 
         logging.warning(warning_message) 
 
@@ -133,9 +136,16 @@ def adjust_for_10k(df_dict, list_10k, master_df,tag_map):
                 if date_col in list_10k:
                     date_col_10k_index = (list(master_df.columns).index(date_col))
 
-                    sequential_quarters = count_sequential_quarters(list(master_df.columns)[date_col_10k_index:(date_col_10k_index+4)])
-                    if sequential_quarters == 3:
-                        master_df.loc[tmp_df.index,date_col] = tmp_df[date_col] - master_df.loc[tmp_df.index,list(master_df.columns)[date_col_10k_index+1:date_col_10k_index+4]].sum(axis=1) 
+                    sequential_quarters = list(master_df.columns)[date_col_10k_index:(date_col_10k_index+4)]
+                    sequential_quarters_count = count_sequential_quarters(sequential_quarters)
+                    if sequential_quarters_count == 3:
+                        not_nan_bool = master_df.loc[tmp_df.index,sequential_quarters].notna().all(axis=1)
+                        not_nan_rows = tmp_df[not_nan_bool].index 
+                        is_nan_bool = master_df.loc[tmp_df.index,sequential_quarters].isna().any(axis=1)
+                        is_nan_rows = tmp_df[is_nan_bool].index 
+                        master_df.loc[not_nan_rows,date_col] = tmp_df.loc[not_nan_rows,date_col] - master_df.loc[not_nan_rows,list(master_df.columns)[date_col_10k_index+1:date_col_10k_index+4]].sum(axis=1)  
+                        master_df.loc[is_nan_rows,date_col] = None 
+                        #master_df.loc[tmp_df.index,date_col] = tmp_df[date_col] - master_df.loc[tmp_df.index,list(master_df.columns)[date_col_10k_index+1:date_col_10k_index+4]].sum(axis=1) 
                     else:
                         master_df.loc[tmp_df.index,date_col] = None 
 
@@ -169,12 +179,16 @@ def adjust_for_tag_changes_and_10k(master_df,date_statement_list,list_10k,df_dic
 
 
 
-def reorder_dataframe(master_df,df_dict,date_statement_list,logging):
+def clean_up_dataframe(master_df,df_dict,date_statement_list,logging):
     latest_filing_mask = master_df.index.isin(df_dict[date_statement_list[0]].index)
 
     master_df_tmp = master_df.loc[latest_filing_mask,:]
     master_df_tmp = master_df_tmp.reindex(df_dict[date_statement_list[0]].index)
     master_df_tmp = master_df_tmp.append(master_df.loc[~latest_filing_mask,:])
+
+    master_df_tmp = master_df_tmp.loc[~master_df_tmp.isna().all(axis=1),:]
+
+    #master_df_tmp = 
 
     #master_df_tmp = master_df_tmp.reindex(date_statement_list,axis=1)
 
@@ -204,7 +218,6 @@ def count_sequential_quarters(quarter_list,log_missing=False,logging=None):
 
 def check_dataframe(statement,master_df,date_statement_list,logging):
 
-    print_and_log(logging,statement)
 
     expected_columns = round((datetime.strptime(master_df.columns.max(), "%Y-%m-%d")-datetime.strptime(master_df.columns.min(), "%Y-%m-%d")).days/(365/4))+1
     actual_columns = len(master_df.columns)
@@ -296,11 +309,13 @@ def save_file(master_df,timeseries_path, ticker,statement,logging):
 
 def populate_time_series(logging,latest_ded,statement,csv_path,ticker):
 
+    print_and_log(logging,statement)
+
     df_dict = load_statements_into_dict(statement,csv_path,ticker,latest_ded,logging)
     date_statement_list = sorted(list(df_dict.keys()),reverse=True)
 
     master_df = populate_master_dataframe(date_statement_list,df_dict,logging) 
-    master_df = reorder_dataframe(master_df,df_dict,date_statement_list,logging)
+    master_df = clean_up_dataframe(master_df,df_dict,date_statement_list,logging)
     #master_df = add_labels_to_timeseries(master_df,df_dict,date_statement_list)
     check_dataframe(statement,master_df,date_statement_list,logging)
 
