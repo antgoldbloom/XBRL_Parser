@@ -9,6 +9,8 @@ from datetime import datetime
 from time import time
 
 
+from utils import print_and_log
+
 import logging
 import string
 from sklearn.metrics.pairwise import cosine_similarity
@@ -16,20 +18,21 @@ from sklearn.feature_extraction.text import CountVectorizer
 from nltk.corpus import stopwords
 stopwords = stopwords.words('english')
 
-class CompanyStatementHistory:
+class CompanyStatementTimeseries:
 
 
-    def __init__(self,ticker,csv_path,data_path,update_only=True):
+    def __init__(self,ticker,data_path,update_only=True):
 
         #initialize key variables
         self.ticker = ticker 
-        self.csv_path = csv_path
-        self.log_path = f"{data_path}logs/"
+        self.csv_path = f"{data_path}csv/{ticker}/"
+        self.log_path = f"{data_path}logs/{ticker}/"
         self.timeseries_path = f"{data_path}timeseries/"
         self.latest_statement_date_type()
 
         #configure logging
-        logfilename = f"{self.log_path}{self.ticker}_csv_to_timeseries_{datetime.now().strftime('%Y_%m_%d__%H_%M')}.log"
+        Path(self.log_path).mkdir(parents=True, exist_ok=True)
+        logfilename = f"{self.log_path}csv_to_timeseries_{datetime.now().strftime('%Y_%m_%d__%H_%M')}.log"
         logging.basicConfig(filename=logfilename, filemode='w', format='%(levelname)s - %(message)s',level=logging.INFO)
 
         #delete directory is we're doing a completely fresh pull
@@ -39,18 +42,15 @@ class CompanyStatementHistory:
 
         #loop through each statement
         overall_start_time = time()
-        for dirname, _, filenames in os.walk(f"{csv_path}{ticker}/{ self.latest_statement_date_type}"):
+        for dirname, _, filenames in os.walk(f"{self.csv_path}/{ self.latest_statement_date_type}"):
             for statement in filenames:
-
                 self.create_statement_time_series(statement,logging)
         time_taken = f"Total: time: {time() - overall_start_time}"
-        self.print_and_log(logging,time_taken)
+        print_and_log(logging,time_taken)
 
 
 
     def create_statement_time_series(self,statement,logging):
-        #self.statement = statement
-        #self.load_statements_into_dict
         statement_dict = self.load_statements_into_dict(statement,logging) 
         list_statement_dates = sorted(list(statement_dict.keys()),reverse=True)
 
@@ -59,11 +59,13 @@ class CompanyStatementHistory:
         needs_update = True 
         if os.path.exists(statement_full_path):
             timeseries_df_current = pd.read_csv(statement_full_path,index_col=[0])
-            latest_date_from_csv_statement = max(selfequivalent not.date_columns_from_statement(statement_dict[list_statement_dates[0]].columns))
+            latest_date_from_csv_statement = max(self.date_columns_from_statement(statement_dict[list_statement_dates[0]].columns))
             if latest_date_from_csv_statement == timeseries_df_current.columns.max(): 
                 needs_update = False
                 message = f"Already have latest version of {statement} for {self.ticker}"
-                self.print_and_log(logging,message)
+                print_and_log(logging,message)
+            else: 
+                os.remove(statement_full_path)
 
         if needs_update == True:
             timeseries_df = self.populate_timeseries(statement,statement_dict,list_statement_dates,logging) 
@@ -71,7 +73,7 @@ class CompanyStatementHistory:
 
     def populate_timeseries(self,statement,statement_dict,list_statement_dates,logging):
 
-        self.print_and_log(logging,statement)
+        print_and_log(logging,statement)
 
         timeseries_df = self.populate_timeseries_df(statement_dict,list_statement_dates,logging) 
         timeseries_df = self.clean_up_timeseries_df(statement_dict,list_statement_dates,timeseries_df,logging)
@@ -79,10 +81,9 @@ class CompanyStatementHistory:
         return timeseries_df
 
 
-
     def latest_statement_date_type(self):
         ded_dict = {}
-        for dirname in os.listdir(f"{self.csv_path}{self.ticker}"):
+        for dirname in os.listdir(f"{self.csv_path}"):
             ded_dict[dirname[:10]] = dirname 
         
         self.latest_statement_date_type = ded_dict[max(ded_dict.keys())]
@@ -91,10 +92,10 @@ class CompanyStatementHistory:
     def load_statements_into_dict(self,statement,logging):
 
         statement_dict = {}
-        statement_dict[self.latest_statement_date_type] = pd.read_csv(os.path.join(f"{csv_path}{ticker}/{self.latest_statement_date_type}",statement),index_col=[0])
+        statement_dict[self.latest_statement_date_type] = pd.read_csv(os.path.join(f"{self.csv_path}{self.latest_statement_date_type}",statement),index_col=[0])
 
         missing_list = []
-        for dirname, _, filenames in os.walk(f"{csv_path}{ticker}"):
+        for dirname, _, filenames in os.walk(f"{self.csv_path}"):
             missing_list.append(dirname)
             max_overlap = 0
             for filename in filenames:
@@ -121,7 +122,7 @@ class CompanyStatementHistory:
                 missing_list.remove(dirname)
 
         missing_list = np.unique(missing_list)
-        self.log_missing(missing_list,statement,csv_path, ticker,logging)
+        self.log_missing(missing_list,statement,self.csv_path, ticker,logging)
 
         return statement_dict
 
@@ -148,7 +149,7 @@ class CompanyStatementHistory:
     def log_missing(self,missing_list,statement,csv_path,ticker,logging):
             
         missing_list = list(missing_list)
-        missing_list.remove(f"{csv_path}{ticker}")
+        missing_list.remove(f"{csv_path}")
 
         for dirname in missing_list:
             warning_message = f"{statement} equivalent not found in {dirname}"
@@ -274,7 +275,7 @@ class CompanyStatementHistory:
             else:
                 if log_missing:
                     message = f"Missing quarter between {quarter_list[i-1]} and {quarter_list[i]}"
-                    self.print_and_log(logging, message, True) 
+                    print_and_log(logging, message, True) 
                 else:
                     break   
         return sequential_quarters 
@@ -289,17 +290,17 @@ class CompanyStatementHistory:
 
         sequential_quarters = self.count_sequential_quarters(timeseries_df.columns, True, logging)
         message = f"Estimate of sequential quarters: {sequential_quarters}"
-        self.print_and_log(logging,message)
+        print_and_log(logging,message)
 
         message = f"Number of periods: {actual_columns}" 
-        self.print_and_log(logging,message)
+        print_and_log(logging,message)
 
         message = f"Number of metrics: {len(timeseries_df)}" 
-        self.print_and_log(logging,message)
+        print_and_log(logging,message)
 
         na_percentage = round(100*(len(timeseries_df)-timeseries_df.count()).sum()/(len(timeseries_df)*len(timeseries_df.columns)),2)
         message = f"NA percentage:  {na_percentage}"
-        self.print_and_log(logging,message)
+        print_and_log(logging,message)
 
     def statement_file_path_and_name(self,statement,logging=None):
         dash_list = [m.start() for m in re.finditer('-', statement)]
@@ -311,7 +312,7 @@ class CompanyStatementHistory:
             filetype = 'Other'
             if logging is not None:
                 message = f'Statement type could not be infered for {statement}'
-                self.print_and_log(message)
+                print_and_log(message)
 
         return [f"{self.timeseries_path}{self.ticker}/{filetype}/",statement_name]
 
@@ -324,22 +325,13 @@ class CompanyStatementHistory:
 
         
 
-    def print_and_log(self,logging,message,warning=False):
-        print(message)
-        if warning:
-            logging.warning(message)
-        else:
-            logging.info(message)
-
 
 #### RUN CODE
 
 
-csv_path = '../data/csv/'
 data_path = '../data/'
 ticker = 'ZM'
-ZM_sh = CompanyStatementHistory(ticker,csv_path,data_path)
-print(ZM_sh.latest_statement_date_type)
+ZM_sh = CompanyStatementTimeseries(ticker,data_path)
   
 
 

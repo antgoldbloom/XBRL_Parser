@@ -11,7 +11,7 @@ from datetime import datetime
 import shutil
 import logging
 
-
+class CompanyStatementCSV
 #statement_name = 'SegmentInformationReportableSegmentsAndReconciliationToConsolidatedNetIncomeDetails'
 #statement_name = 'SegmentInformationDisaggregationOfRevenueDetails'
  
