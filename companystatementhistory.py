@@ -41,6 +41,7 @@ class CompanyStatementHistory:
         overall_start_time = time()
         for dirname, _, filenames in os.walk(f"{csv_path}{ticker}/{ self.latest_statement_date_type}"):
             for statement in filenames:
+
                 self.create_statement_time_series(statement,logging)
         time_taken = f"Total: time: {time() - overall_start_time}"
         self.print_and_log(logging,time_taken)
@@ -52,8 +53,21 @@ class CompanyStatementHistory:
         #self.load_statements_into_dict
         statement_dict = self.load_statements_into_dict(statement,logging) 
         list_statement_dates = sorted(list(statement_dict.keys()),reverse=True)
-        timeseries_df = self.populate_timeseries(statement,statement_dict,list_statement_dates,logging) 
-        self.save_file(statement,timeseries_df,logging)
+
+        statement_folder, statement_name = self.statement_file_path_and_name(statement)
+        statement_full_path = os.path.join(statement_folder,statement_name)
+        needs_update = True 
+        if os.path.exists(statement_full_path):
+            timeseries_df_current = pd.read_csv(statement_full_path,index_col=[0])
+            latest_date_from_csv_statement = max(selfequivalent not.date_columns_from_statement(statement_dict[list_statement_dates[0]].columns))
+            if latest_date_from_csv_statement == timeseries_df_current.columns.max(): 
+                needs_update = False
+                message = f"Already have latest version of {statement} for {self.ticker}"
+                self.print_and_log(logging,message)
+
+        if needs_update == True:
+            timeseries_df = self.populate_timeseries(statement,statement_dict,list_statement_dates,logging) 
+            self.save_file(statement,timeseries_df,logging)
 
     def populate_timeseries(self,statement,statement_dict,list_statement_dates,logging):
 
@@ -142,13 +156,16 @@ class CompanyStatementHistory:
             logging.warning(warning_message)  
 
 
+    def date_columns_from_statement(self,columns):
+        return [date_col for date_col in columns if re.match('[0-9]{4}-[0-9]{2}-[0-9]{2}',date_col)]
+
     def populate_timeseries_df(self,statement_dict,list_statement_dates,logging):
 
         list_10k = []
 
         for ds in list_statement_dates:
             
-            date_cols = [date_col for date_col in statement_dict[ds].columns if re.match('[0-9]{4}-[0-9]{2}-[0-9]{2}',date_col)]
+            date_cols = self.date_columns_from_statement(statement_dict[ds].columns) 
             tmp_df = statement_dict[ds][date_cols]
 
             if ds[12:16] == '10-K':
@@ -284,16 +301,17 @@ class CompanyStatementHistory:
         message = f"NA percentage:  {na_percentage}"
         self.print_and_log(logging,message)
 
-    def statement_file_path_and_name(self,statement,logging):
+    def statement_file_path_and_name(self,statement,logging=None):
         dash_list = [m.start() for m in re.finditer('-', statement)]
         if len(dash_list) >= 2: 
             filetype = statement[dash_list[0]+2:dash_list[1]-1]
             statement_name = statement[dash_list[1]+2:]
         else:
-            message = f'Statement type could not be infered for {statement}'
-            self.print_and_log(message)
             statement_name = statement 
             filetype = 'Other'
+            if logging is not None:
+                message = f'Statement type could not be infered for {statement}'
+                self.print_and_log(message)
 
         return [f"{self.timeseries_path}{self.ticker}/{filetype}/",statement_name]
 
@@ -320,7 +338,7 @@ class CompanyStatementHistory:
 csv_path = '../data/csv/'
 data_path = '../data/'
 ticker = 'ZM'
-ZM_sh = CompanyStatementHistory(ticker,csv_path,data_path,False)
+ZM_sh = CompanyStatementHistory(ticker,csv_path,data_path)
 print(ZM_sh.latest_statement_date_type)
   
 
