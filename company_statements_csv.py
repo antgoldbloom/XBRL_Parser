@@ -25,16 +25,15 @@ class CompanyStatementCSV:
         self.ticker = ticker 
         self.json_path = f'{data_path}/json/'
         self.csv_path = f'{data_path}/csv/{ticker}/'
-        self.log_path = f'{data_path}/logs/'
+        self.log_path = f'{data_path}/logs/{ticker}/'
 
         #if not update only clear csv path
         if update_only == False:
             shutil.rmtree(f"{self.csv_path}", ignore_errors=True, onerror=None)  #remove if exists 
 
         #initialize logging
-        log_folder = f"{self.log_path}{self.ticker}"
-        Path(log_folder).mkdir(parents=True, exist_ok=True)
-        logfilename = f"{log_folder}/json_to_csv_{datetime.now().strftime('%Y_%m_%d__%H_%M')}.log"
+        Path(self.log_path).mkdir(parents=True, exist_ok=True)
+        logfilename = f"{self.log_path}/json_to_csv_{datetime.now().strftime('%Y_%m_%d__%H_%M')}.log"
         logging.basicConfig(filename=logfilename, filemode='w', format='%(levelname)s - %(message)s',level=logging.INFO)
 
         print_and_log(logging,self.ticker)
@@ -61,6 +60,7 @@ class CompanyStatementCSV:
 
         with open(f"{self.json_path}{self.ticker}.json", 'r') as stock_json:
             stock_dict = json.loads(stock_json.read())
+
 
         return stock_dict
 
