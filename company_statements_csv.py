@@ -8,53 +8,52 @@ import glob
 from time import time
 
 
-from utils import print_and_log
+from utils import setup_logging 
 
 
 from datetime import datetime
 import shutil
-import logging
 
 
 class CompanyStatementCSV:
 
-    def __init__(self,ticker,data_path,update_only=True):
+    def __init__(self,ticker,data_path,log_time_folder,update_only=True):
 
 
         ### initialize variables
         self.ticker = ticker 
-        self.json_path = f'{data_path}/json/'
-        self.csv_path = f'{data_path}/csv/{ticker}/'
-        self.log_path = f'{data_path}/logs/{ticker}/'
+        self.json_path = f'{data_path}json/'
+        self.csv_path = f'{data_path}csv/{ticker}/'
+        self.log_path = f'{data_path}logs/{ticker}/{log_time_folder}/'
 
         #if not update only clear csv path
         if update_only == False:
             shutil.rmtree(f"{self.csv_path}", ignore_errors=True, onerror=None)  #remove if exists 
 
         #initialize logging
-        Path(self.log_path).mkdir(parents=True, exist_ok=True)
-        logfilename = f"{self.log_path}/json_to_csv_{datetime.now().strftime('%Y_%m_%d__%H_%M')}.log"
-        logging.basicConfig(filename=logfilename, filemode='w', format='%(levelname)s - %(message)s',level=logging.INFO)
+        csv_logger = setup_logging(self.log_path,'csv.log','csv')
+        csv_logger.info(f'______{ticker}_CSV______')
 
-        print_and_log(logging,self.ticker)
         start_time = time()
-
-        #load json as dict
         self.stock_dict= self.load_json_to_dict()
 
         #convert json to dataframe
         for document_end_date in self.stock_dict: 
-            print_and_log(logging,f"{document_end_date}")
+            csv_logger.info(f"__{document_end_date}__")
             csv_full_path = f"{self.csv_path}{document_end_date} ({self.stock_dict[document_end_date]['document_type']})"
             if os.path.exists(csv_full_path):
-                print_and_log(logging,f"{document_end_date} ({self.stock_dict[document_end_date]['document_type']}) already exists so not updating")
+                csv_logger.info(f"{document_end_date} ({self.stock_dict[document_end_date]['document_type']}) already exists so not updating")
             else:
                 freq = self.extract_freq(document_end_date)
                 for statement in self.stock_dict[document_end_date]['statements']: 
-                    self.stock_list_dict_to_dataframe(self.stock_dict[document_end_date]['statements'],document_end_date,self.stock_dict[document_end_date]['document_type'],statement,freq,logging)
+                    self.stock_list_dict_to_dataframe(self.stock_dict[document_end_date]['statements'],document_end_date,self.stock_dict[document_end_date]['document_type'],statement,freq,csv_logger)
  
+        self.date_count = len(os.listdir(self.csv_path)) 
+        csv_logger.info(f"Statement Count: {self.date_count}")
         ticker_time = f"{time() - start_time}"
-        print_and_log(logging,f"Elapsed time {ticker_time}")
+        csv_logger.info(f"Elapsed time: {ticker_time}")
+
+
  
     def load_json_to_dict(self):
 
@@ -83,21 +82,21 @@ class CompanyStatementCSV:
         return tmp_stock_dict
 
 
-    def add_to_stock_list_dict(self,stock_dict_with_ded,stock_list_dict,statement,metric,stock_dict_up_to_metrics,logging,is_segment=False,sld_index=None):
+    def add_to_stock_list_dict(self,stock_dict_with_ded,stock_list_dict,statement,metric,stock_dict_up_to_metrics,csv_logger,is_segment=False,sld_index=None):
         tmp_stock_dict_list = []
         top_level_xlink_from = self.list_top_level_statement_tags(stock_dict_with_ded,statement) 
         tmp_stock_dict = self.create_tmp_stock_dict(stock_dict_up_to_metrics[metric],metric)
         tmp_stock_dict_list.append(tmp_stock_dict)
 
         if not is_segment:
-            stock_list_dict = self.walk_prearc_xlink_tree(top_level_xlink_from,metric,stock_dict_up_to_metrics, stock_list_dict,tmp_stock_dict_list,logging)  
+            stock_list_dict = self.walk_prearc_xlink_tree(top_level_xlink_from,metric,stock_dict_up_to_metrics, stock_list_dict,tmp_stock_dict_list,csv_logger)  
         else: # this is for segments
             stock_list_dict[sld_index] = tmp_stock_dict_list 
 
         return stock_list_dict
 
 
-    def walk_prearc_xlink_tree(self,top_level_xlink_from,metric,stock_dict_up_to_metrics, stock_list_dict,tmp_stock_dict_list,logging): 
+    def walk_prearc_xlink_tree(self,top_level_xlink_from,metric,stock_dict_up_to_metrics, stock_list_dict,tmp_stock_dict_list,csv_logger): 
         if 'prearc_xlink:from' in stock_dict_up_to_metrics[metric]:
             xlink_lower_metric = stock_dict_up_to_metrics[metric]['prearc_xlink:from']
             xlink_lower_metric_match = None 
@@ -124,7 +123,7 @@ class CompanyStatementCSV:
 
                 
                 if (xlink_lower_metric_match not in top_level_xlink_from) and (while_count == WHILE_COUNT_CUTOFF): 
-                    print_and_log(logging,f"Skipped {metric_lower} due to error in presentation file",True) 
+                    csv_logger.warning(f"Skipped {metric_lower} due to error in presentation file") 
                     break #GIVE UP ON FINDING MATCHES AT THIS POINT
 
                 while_count+=1
@@ -134,17 +133,17 @@ class CompanyStatementCSV:
 
 
 
-    def create_stock_dict_list(self,stock_dict_with_ded,statement,freq,logging):
+    def create_stock_dict_list(self,stock_dict_with_ded,statement,freq,csv_logger):
         stock_list_dict = dict()
         #pull out label chain for each numeric metric into dict
         for metric in stock_dict_with_ded[statement]['metrics']:
             if (freq in stock_dict_with_ded[statement]['metrics'][metric]) or ('instant' in stock_dict_with_ded[statement]['metrics'][metric]): 
-                stock_list_dict = self.add_to_stock_list_dict(stock_dict_with_ded,stock_list_dict,statement,metric,stock_dict_with_ded[statement]['metrics'],logging)
+                stock_list_dict = self.add_to_stock_list_dict(stock_dict_with_ded,stock_list_dict,statement,metric,stock_dict_with_ded[statement]['metrics'],csv_logger)
             if 'segment' in stock_dict_with_ded[statement]['metrics'][metric]: 
                 for segment_metric in stock_dict_with_ded[statement]['metrics'][metric]['segment']:
                     if (freq in stock_dict_with_ded[statement]['metrics'][metric]['segment'][segment_metric]) or ('instant' in stock_dict_with_ded[statement]['metrics'][metric]['segment'][segment_metric]):   
                         sld_index = f"{metric}___{segment_metric}"
-                        stock_list_dict = self.add_to_stock_list_dict(stock_dict_with_ded,stock_list_dict,statement,segment_metric,stock_dict_with_ded[statement]['metrics'][metric]['segment'],logging,True,sld_index) #order segments just below parent item
+                        stock_list_dict = self.add_to_stock_list_dict(stock_dict_with_ded,stock_list_dict,statement,segment_metric,stock_dict_with_ded[statement]['metrics'][metric]['segment'],csv_logger,True,sld_index) #order segments just below parent item
                         if metric in stock_list_dict:
                             stock_list_dict[sld_index][0]['prearc_order'] = float(stock_list_dict[metric][0]['prearc_order']) + 0.1
                             for i in range(1,len(stock_list_dict[sld_index])):
@@ -152,9 +151,9 @@ class CompanyStatementCSV:
         return stock_list_dict                    
 
 
-    def stock_list_dict_to_dataframe(self,stock_dict_with_ded,document_end_date,document_type,statement,freq,logging):
+    def stock_list_dict_to_dataframe(self,stock_dict_with_ded,document_end_date,document_type,statement,freq,csv_logger):
 
-        stock_list_dict = self.create_stock_dict_list(stock_dict_with_ded,statement,freq,logging) 
+        stock_list_dict = self.create_stock_dict_list(stock_dict_with_ded,statement,freq,csv_logger) 
 
         metric_list = []
         for row in stock_list_dict:
@@ -176,15 +175,13 @@ class CompanyStatementCSV:
                     for metric_date in stock_list_dict[metric][0][period_type]:
                         df_statement.loc[df_statement.index==metric,metric_date] =  stock_list_dict[metric][0][period_type][metric_date]
             
-        #df_statement = df_statement.iloc[:, ::-1] #reverse order of dates
         df_statement = df_statement.reindex(sorted(df_statement.columns,reverse=True), axis=1)
         df_statement.index.name = statement
 
         if len(df_statement) > 0:
-            print_and_log(logging,f"{statement} ({document_end_date}): {len(df_statement)} rows were saved")
             self.save_statement(df_statement,document_end_date,document_type,statement)
         else: 
-            print_and_log(logging,f"{statement} ({document_end_date}): had no numeric values and was not saved",True)
+            csv_logger.info(f"{statement}: had no numeric values and was not saved")
 
 
     def make_filename_safe(self,statement_name):
@@ -220,9 +217,6 @@ class CompanyStatementCSV:
         return freq
 
 
-ticker = 'ZM'
-data_path = '../data/'
-ZM_csv = CompanyStatementCSV(ticker,data_path,False)
 
 
 ##file_list = glob.glob(f"{json_path}/*.json") 

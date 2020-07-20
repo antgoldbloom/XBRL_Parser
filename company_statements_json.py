@@ -6,6 +6,8 @@ import json
 
 from bs4 import BeautifulSoup, Tag
 from lxml import etree
+from lxml.etree import XMLParser
+
 import re
 from pathlib import Path
 import requests
@@ -15,7 +17,7 @@ import shutil
 
 from time import time
 
-from utils import print_and_log
+from utils import setup_logging 
 
 import os
 
@@ -24,26 +26,21 @@ from dateutil.relativedelta import relativedelta
 
 import timeit
 
-import logging
-
-pd.set_option('max_rows',500)
-
 class CompanyStatementsJSON:
 
-    def __init__(self,ticker,data_path,update_only=True):
+    def __init__(self,ticker,data_path,log_time_folder,update_only=True):
 
 
         self.ticker = ticker 
         self.json_path = f'{data_path}json/'
-        self.xbrl_path = f'{data_path}xbrl/' 
-        self.log_path = f'{data_path}logs/{ticker}' 
+        self.xbrl_path = f'{data_path}xbrl/{ticker}/' 
+        self.log_path = f'{data_path}logs/{ticker}/{log_time_folder}/' 
 
         start_time = time()
 
         #initialize logging
-        Path(self.log_path).mkdir(parents=True, exist_ok=True)
-        logfilename = f"{self.log_path}/json_to_csv_{datetime.now().strftime('%Y_%m_%d__%H_%M')}.log"
-        logging.basicConfig(filename=logfilename, filemode='w', format='%(levelname)s - %(message)s',level=logging.INFO)
+        json_logger = setup_logging(self.log_path,'json.log','json')
+        json_logger.info(f'_____{ticker}_JSON_____')
 
 
         json_path_and_file = os.path.join(self.json_path,f"{self.ticker}.json")
@@ -51,25 +48,28 @@ class CompanyStatementsJSON:
             with open(json_path_and_file) as stock_json:
                 stock_dict = json.loads(stock_json.read())  
                 
-            stock_dict = self.create_stock_dict(stock_dict,logging)
+            stock_dict = self.create_stock_dict(stock_dict,json_logger)
         elif os.path.exists(json_path_and_file): 
             os.remove(json_path_and_file)
-            stock_dict = self.create_stock_dict({},logging)
+            stock_dict = self.create_stock_dict({},json_logger)
         else:
-            stock_dict = self.create_stock_dict({},logging)
+            stock_dict = self.create_stock_dict({},json_logger)
 
 
 
         with open(f"{self.json_path}{ticker}.json", 'w') as stock_json:
             json.dump(stock_dict, stock_json)
 
-        print_and_log(logging,f"Elapsed time: {time() - start_time}")
+
+        self.date_count = len(stock_dict.keys()) 
+        json_logger.info(f"Statement Count: {self.date_count}")
+        json_logger.info(f"Elapsed time: {time() - start_time}")
 
 
 
-    def create_stock_dict(self,stock_dict,logging):
+    def create_stock_dict(self,stock_dict,json_logger):
         
-        for dirname, _, filenames in os.walk(f'{self.xbrl_path}{self.ticker}/'):
+        for dirname, _, filenames in os.walk(self.xbrl_path):
             parsed_xml_dict = dict()
             if dirname[-10:] not in stock_dict:
                 for filename in filenames:
@@ -81,19 +81,20 @@ class CompanyStatementsJSON:
                         parsed_xml_dict['cal']= etree.parse(os.path.join(dirname,filename))
                     elif (filename[-3:] == 'xml'):
                         instance_filepath = os.path.join(dirname,filename)
-                        parsed_xml_dict['instance']= etree.parse(instance_filepath)
+                        huge_tree_parser = XMLParser(huge_tree=True)
+                        parsed_xml_dict['instance']= etree.parse(instance_filepath,parser=huge_tree_parser)
                     elif (filename[-3:] == 'xsd'):
                         parsed_xml_dict['xsd'] = self.create_soup_object(dirname,filename) 
 
 
                 
                 if parsed_xml_dict.keys() >= {"lab", "pre","instance","xsd","cal"}:
-                    stock_dict = self.add_to_stock_dict(stock_dict,parsed_xml_dict,instance_filepath)
-                    print_and_log(logging,f"{dirname[-10:]} added")
+                    stock_dict = self.add_to_stock_dict(stock_dict,parsed_xml_dict,instance_filepath,json_logger)
+                    json_logger.info(f"{dirname[-10:]} added")
                 elif re.match('[0-9]{4}-[0-9]{2}-[0-9]{2}',dirname[dirname.rfind('/')+1:]): #if in a directory with a date, print a wanring
-                    print_and_log(logging,f"Warning: missing XBRL file for {ticker} in {dirname}")
+                    json_logger.info(f"Warning: missing XBRL file for {self.ticker} in {dirname}")
             else:
-                print_and_log(logging,f"{dirname[-10:]} already in {ticker}.json")
+                json_logger.info(f"{dirname[-10:]} already in {self.ticker}.json")
             
         return stock_dict
         
@@ -122,7 +123,7 @@ class CompanyStatementsJSON:
         return parsed_xml.xpath(f"//{query_str}",namespaces=ns_dict) 
 
 
-    def add_metrics(self,parsed_xml,stock_dict_with_ded,context_dict,metric_list,cal_dict,label_lookup_dict):
+    def add_metrics(self,parsed_xml,stock_dict_with_ded,context_dict,metric_list,cal_dict,label_lookup_dict,json_logger):
 
         tag_list = self.fetch_metrics_tag_list(parsed_xml)
 
@@ -143,7 +144,7 @@ class CompanyStatementsJSON:
 
 
                             stock_dict_with_ded[statement]['metrics'] = self.create_dict_if_new_key(tag_name_str, stock_dict_with_ded[statement]['metrics']) 
-                            stock_dict_with_ded[statement]['metrics'][tag_name_str] = self.add_labels( stock_dict_with_ded[statement]['metrics'][tag_name_str],label_lookup_dict,tag_name_str) 
+                            stock_dict_with_ded[statement]['metrics'][tag_name_str] = self.add_labels( stock_dict_with_ded[statement]['metrics'][tag_name_str],label_lookup_dict,tag_name_str,json_logger) 
 
                             hasSegment = False
                             dontAdd = False
@@ -152,7 +153,7 @@ class CompanyStatementsJSON:
                                     stock_dict_with_ded[statement]['metrics'][tag_name_str] = self.create_dict_if_new_key('segment', stock_dict_with_ded[statement]['metrics'][tag_name_str]) 
                                     segment_name_str = self.convert_tag_name_str(context_dict[contextref]['segment']) 
                                     stock_dict_with_ded[statement]['metrics'][tag_name_str]['segment'] = self.create_dict_if_new_key(segment_name_str, stock_dict_with_ded[statement]['metrics'][tag_name_str]['segment']) 
-                                    stock_dict_with_ded[statement]['metrics'][tag_name_str]['segment'][segment_name_str] = self.add_labels( stock_dict_with_ded[statement]['metrics'][tag_name_str]['segment'][segment_name_str],label_lookup_dict,segment_name_str) 
+                                    stock_dict_with_ded[statement]['metrics'][tag_name_str]['segment'][segment_name_str] = self.add_labels( stock_dict_with_ded[statement]['metrics'][tag_name_str]['segment'][segment_name_str],label_lookup_dict,segment_name_str,json_logger) 
                                     hasSegment = True 
                                 else:
                                     dontAdd = True #segment not in this statement, don't let past the endDate or instant qualifiers
@@ -171,10 +172,14 @@ class CompanyStatementsJSON:
         
         return stock_dict_with_ded 
 
-    def add_labels(self,stock_dict_up_to_labels,label_lookup_dict,tag_name_str):
+    def add_labels(self,stock_dict_up_to_labels,label_lookup_dict,tag_name_str,json_logger):
         if 'labels' not in stock_dict_up_to_labels:  
             stock_dict_up_to_labels['labels'] = {} 
-            stock_dict_up_to_labels['labels'] = label_lookup_dict[tag_name_str]['labels']
+            try:
+                stock_dict_up_to_labels['labels'] = label_lookup_dict[tag_name_str]['labels']
+            except: 
+                json_logger.error(f"Couldn't find {tag_name_str} label")
+
         return stock_dict_up_to_labels 
 
 
@@ -312,11 +317,12 @@ class CompanyStatementsJSON:
             for ce in calculation_element: 
                 calculation_link_element = ce.getparent()
                 calculation_link_element_role = calculation_link_element.xpath("@xlink:role",namespaces=CALC_NAMESPACES)[0] 
-                statement_role_str = re.search('/role/[A-Za-z]+',calculation_link_element_role).group(0)[6:] 
-                if statement_role_str not in cal_dict:
-                    cal_dict[statement_role_str] = dict()
+                if re.search('/role/[A-Za-z]+',calculation_link_element_role) is not None: 
+                    statement_role_str = re.search('/role/[A-Za-z]+',calculation_link_element_role).group(0)[6:] 
+                    if statement_role_str not in cal_dict:
+                        cal_dict[statement_role_str] = dict()
             
-                cal_dict[statement_role_str][metric] = float(calculation_element[0].xpath('@weight')[0]) 
+                    cal_dict[statement_role_str][metric] = float(calculation_element[0].xpath('@weight')[0]) 
 
         return cal_dict
 
@@ -401,7 +407,7 @@ class CompanyStatementsJSON:
                     print(f"Couldn't add label: {err}")
         return stock_dict_with_ded
 
-    def add_to_stock_dict(self,stock_dict,parsed_xml_dict,instance_filepath):
+    def add_to_stock_dict(self,stock_dict,parsed_xml_dict,instance_filepath,json_logger):
 
         document_end_date = None 
         try:
@@ -445,7 +451,7 @@ class CompanyStatementsJSON:
             #Add from instance file
             cal_dict = self.parse_cal_xml(parsed_xml_dict['cal'])
             context_dict = self.do_context_mapping(parsed_xml_dict['instance'])
-            stock_dict[document_end_date]['statements'] = self.add_metrics(parsed_xml_dict['instance'],stock_dict[document_end_date]['statements'],context_dict,metric_list,cal_dict,label_lookup_dict)    
+            stock_dict[document_end_date]['statements'] = self.add_metrics(parsed_xml_dict['instance'],stock_dict[document_end_date]['statements'],context_dict,metric_list,cal_dict,label_lookup_dict,json_logger)    
 
                 
         return stock_dict 
@@ -503,8 +509,4 @@ class CompanyStatementsJSON:
         return soup
 
 
-
-ticker = 'ZM'
-data_path = '../data/'
-ZM_csv = CompanyStatementsJSON(ticker,data_path)
 
