@@ -211,7 +211,7 @@ class CompanyStatementCSV:
     def extract_freq(self,document_end_date):
         if self.stock_dict[document_end_date]['document_type'] == '10-Q':  
             freq = 'qtd'
-        elif self.stock_dict[document_end_date]['document_type'] == '10-K':  
+        elif self.stock_dict[document_end_date]['document_type'] in ['10-K']:  
             freq = 'ytd'
 
         return freq

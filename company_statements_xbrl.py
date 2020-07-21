@@ -110,7 +110,8 @@ class CompanyStatementsXBRL:
             
             # Need xpath capabilities of lxml because some entries are mislabeled as
             # 10-K405, for example, which makes an exact match of filing type infeasible
-            xpath_selector = "//w3:filing-type[not(contains(text(), '/A'))]/.." #excludes amendments
+            #xpath_selector = "//w3:filing-type[not(contains(text(), '/A'))]/.." #excludes amendments
+            xpath_selector = f"//w3:filing-type[text() = '{filing_type}']/.."
 
 
             filing_entry_elts = self.extract_elements_from_xml(resp.content, xpath_selector)

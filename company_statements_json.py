@@ -74,17 +74,28 @@ class CompanyStatementsJSON:
             if dirname[-10:] not in stock_dict:
                 for filename in filenames:
                     if (filename[-7:-4] == 'pre'):
-                        parsed_xml_dict['pre'] = self.create_soup_object(dirname,filename) 
+                        parsed_xml_dict['pre'] = self.create_soup_object(dirname,filename) #eventually should change to lxml 
                     elif (filename[-7:-4] == 'lab'):
-                        parsed_xml_dict['lab']= etree.parse(os.path.join(dirname,filename))
+                        lab_filepath = os.path.join(dirname,filename)
+                        try:
+                            parsed_xml_dict['lab']= etree.parse(lab_filepath)
+                        except:
+                            json_logger.error(f"Couldn't parse xml lab file: {lab_filepath}")
                     elif (filename[-7:-4] in ['cal']):
-                        parsed_xml_dict['cal']= etree.parse(os.path.join(dirname,filename))
+                        cal_filepath = os.path.join(dirname,filename)
+                        try:
+                            parsed_xml_dict['cal']= etree.parse(cal_filepath)
+                        except:
+                            json_logger.error(f"Couldn't parse xml cal file: {cal_filepath}")
                     elif (filename[-3:] == 'xml'):
                         instance_filepath = os.path.join(dirname,filename)
                         huge_tree_parser = XMLParser(huge_tree=True)
-                        parsed_xml_dict['instance']= etree.parse(instance_filepath,parser=huge_tree_parser)
+                        try:
+                            parsed_xml_dict['instance']= etree.parse(instance_filepath,parser=huge_tree_parser)
+                        except:
+                            json_logger.error(f"Couldn't parse xml instance file: {instance_filepath}")
                     elif (filename[-3:] == 'xsd'):
-                        parsed_xml_dict['xsd'] = self.create_soup_object(dirname,filename) 
+                        parsed_xml_dict['xsd'] = self.create_soup_object(dirname,filename) #eventually should change to lxml 
 
 
                 
