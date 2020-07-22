@@ -50,12 +50,12 @@ class CompanyStatementsXBRL:
         if not update_only:
             shutil.rmtree(f"{self.xbrl_path}", ignore_errors=True, onerror=None)  #remove if exists 
 
-        xbrl_logger = setup_logging(self.log_path,'download_xbrl.log','xbrl')
+        xbrl_logger = setup_logging(self.log_path,'download_xbrl.log',f'xbrl_{ticker}')
         xbrl_logger.info('______{ticker}_XBRL_download______')
 
         self.get_filings(xbrl_logger)
 
-        time_taken = f"Total: time: {time.time() - overall_start_time}"
+        time_taken = f"Total time: {time.time() - overall_start_time}"
         xbrl_logger.info(f"Download count: {self.download_count}")
         xbrl_logger.info(time_taken)
 

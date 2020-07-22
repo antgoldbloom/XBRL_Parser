@@ -32,7 +32,7 @@ class CompanyStatementTimeseries:
 
         
         #configure logging
-        timeseries_logger = setup_logging(self.log_path,'timeseries.log','timeseries')
+        timeseries_logger = setup_logging(self.log_path,'timeseries.log',f'timeseries_{ticker}')
         timeseries_logger.info(f'_____{ticker}_TIMESERIES_____')
 
         #delete directory is we're doing a completely fresh pull
@@ -53,7 +53,7 @@ class CompanyStatementTimeseries:
                     self.statement_count += 1
 
         timeseries_logger.info(f"Statement count: {self.statement_count}")
-        time_taken = f"Total: time: {time() - overall_start_time}"
+        time_taken = f"Total time: {time() - overall_start_time}"
         timeseries_logger.info(time_taken)
 
 

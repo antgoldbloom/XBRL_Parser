@@ -39,7 +39,7 @@ class CompanyStatementsJSON:
         start_time = time()
 
         #initialize logging
-        json_logger = setup_logging(self.log_path,'json.log','json')
+        json_logger = setup_logging(self.log_path,'json.log',f'json_{ticker}')
         json_logger.info(f'_____{ticker}_JSON_____')
 
 
@@ -63,7 +63,7 @@ class CompanyStatementsJSON:
 
         self.date_count = len(stock_dict.keys()) 
         json_logger.info(f"Statement Count: {self.date_count}")
-        json_logger.info(f"Elapsed time: {time() - start_time}")
+        json_logger.info(f"Total time: {time() - start_time}")
 
 
 
@@ -159,6 +159,8 @@ class CompanyStatementsJSON:
 
                             hasSegment = False
                             dontAdd = False
+
+
                             if ('segment' in context_dict[contextref]): #checking it's a segment and just for one quarter           
                                 if self.convert_tag_name_str(context_dict[contextref]['segment']) in stock_dict_with_ded[statement]['metrics']: #checking if segment is in this statement
                                     stock_dict_with_ded[statement]['metrics'][tag_name_str] = self.create_dict_if_new_key('segment', stock_dict_with_ded[statement]['metrics'][tag_name_str]) 
@@ -180,7 +182,9 @@ class CompanyStatementsJSON:
                                     stock_dict_with_ded[statement]['metrics'][tag_name_str]['segment'][segment_name_str] = self.add_value_to_metric(stock_dict_with_ded[statement]['metrics'][tag_name_str]['segment'][segment_name_str],tag,context_dict[contextref]['instant'],cal_dict,tag_name_str,statement,'instant') 
                                 else:
                                     stock_dict_with_ded[statement]['metrics'][tag_name_str] = self.add_value_to_metric(stock_dict_with_ded[statement]['metrics'][tag_name_str],tag,context_dict[contextref]['instant'],cal_dict,tag_name_str,statement,'instant') 
-        
+
+                                
+            
         return stock_dict_with_ded 
 
     def add_labels(self,stock_dict_up_to_labels,label_lookup_dict,tag_name_str,json_logger):
@@ -498,7 +502,7 @@ class CompanyStatementsJSON:
                     if len(c_em) > 0:
                         context_dict[contextref_id][context_tag_str] = c_em[0].text 
                 elif context_tag_str in ['startDate','endDate','instant']:
-                    context_dict[contextref_id][context_tag_str] = c.text 
+                    context_dict[contextref_id][context_tag_str] = c.text.strip()
             
         return context_dict
 

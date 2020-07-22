@@ -31,7 +31,7 @@ class CompanyStatementCSV:
             shutil.rmtree(f"{self.csv_path}", ignore_errors=True, onerror=None)  #remove if exists 
 
         #initialize logging
-        csv_logger = setup_logging(self.log_path,'csv.log','csv')
+        csv_logger = setup_logging(self.log_path,'csv.log',f'csv_{ticker}')
         csv_logger.info(f'______{ticker}_CSV______')
 
         start_time = time()
@@ -51,7 +51,7 @@ class CompanyStatementCSV:
         self.date_count = len(os.listdir(self.csv_path)) 
         csv_logger.info(f"Statement Count: {self.date_count}")
         ticker_time = f"{time() - start_time}"
-        csv_logger.info(f"Elapsed time: {ticker_time}")
+        csv_logger.info(f"Total time: {ticker_time}")
 
 
  

@@ -2,6 +2,7 @@ import pandas as pd
 import os
 
 from datetime import datetime, date, timedelta
+from time import time
 from dateutil.relativedelta import *
 
 import numpy as np
@@ -12,6 +13,8 @@ import calendar
 from pathlib import Path
 
 
+import json
+
 import requests
 import urllib.parse
 
@@ -20,6 +23,8 @@ quandl.ApiConfig.api_key = "ca9bMvozbsfJ41tQECsN"
 
 pd.set_option('max_columns',250)
 pd.set_option('max_rows',100)
+
+class CompanyStockrowReconcilation: 
 
 def download_stock_row_statements(ticker,data_path):
     stockrow_folder = f'{data_path}stockrow/{ticker}/'
@@ -112,11 +117,15 @@ def match_statement(df_timeseries,df_comparison):
 
                 if match_pct == 1:
                     #print(f"MATCH: {timeseries_row[0]}")
-                    tmp_mapping_dict = add_to_mapping_dict(tmp_mapping_dict,timeseries_row[0],comparison_row)
+                    #uncomment when using renaming
+                    #tmp_mapping_dict = add_to_mapping_dict(tmp_mapping_dict,timeseries_row[0],comparison_row)
+                    tmp_mapping_dict = add_to_mapping_dict(tmp_mapping_dict,timeseries_row[1],comparison_row)
                         
                 elif match_pct > 0.8:
-                    print(f'Warning: only found an {match_pct} ')
-                    tmp_mapping_dict = add_to_mapping_dict(tmp_mapping_dict,timeseries_row[0],comparison_row)
+                    print(f'Warning: only found a {round(match_pct*100,1)}% match between {timeseries_row[1]} and {comparison_row}')
+                    #uncomment when using renaming
+                    #tmp_mapping_dict = add_to_mapping_dict(tmp_mapping_dict,timeseries_row[0],comparison_row)
+                    tmp_mapping_dict = add_to_mapping_dict(tmp_mapping_dict,timeseries_row[1],comparison_row)
     
     return tmp_mapping_dict
 
@@ -155,7 +164,7 @@ def match_statement_and_rename_labels(ticker, statement,data_path):
             matched_mapping_dict = tmp_mapping_dict
 
     for key in matched_mapping_dict:
-        if len(matched_mapping_dict[key]) > 0:
+        if len(matched_mapping_dict[key]) > 1: 
             print(f"{key}: {', '.join(matched_mapping_dict[key])}")
             #print(matched_mapping_dict[key])
     
@@ -163,7 +172,8 @@ def match_statement_and_rename_labels(ticker, statement,data_path):
     #df_timeseries = rename_index_labels(df_timeseries,matched_mapping_dict,matched_statement)
 
         
-    return df_timeseries
+    #return df_timeseries 
+    return matched_mapping_dict 
 
 def fill_missing_from_stockrow(df,ticker,data_path):
 
@@ -188,18 +198,30 @@ def fill_missing_from_stockrow(df,ticker,data_path):
 
 data_path = '../data/'
 ticker_list = ['AAPL','AXP','BA','CAT','CVX','DD','GS','IBM','INTC','JPM','KO','MMM','MRK','MSFT','PFE','PG','CSCO', 'DIS','GE','HD','JNJ','MCD', 'NKE']
+m_dict = {}
 
-for ticker in ticker_list[2:3]:
+#for ticker in ticker_list[0:2]:
+
+for ticker in os.listdir(f'{data_path}timeseries/'):
     print(ticker)
-    
+    start_time = time()
+
     download_stock_row_statements(ticker,data_path)
     timeseries_statement_folder = f'{data_path}timeseries/{ticker}/Statement/'
     
     df = {}
+    m_dict[ticker] = {}
 
-    #for statement in ['Income Statement','Cash Flow','Balance Sheet']:
+    for statement in ['Income Statement','Cash Flow','Balance Sheet']:
 
-        df[statement] = match_statement_and_rename_labels(ticker, statement,data_path)
+        #df[statement] = match_statement_and_rename_labels(ticker, statement,data_path)
+        m_dict[ticker][statement] = match_statement_and_rename_labels(ticker, statement,data_path)
+
+        with open(f"{data_path}logs/multi_match.json", 'w') as stock_json:
+            json.dump(m_dict, stock_json)
         #df[statement] = fill_missing_from_stockrow(df[statement],ticker,data_path)
-    
+
+    print(f"Time: {time()-start_time}")
+
+print(m_dict) 
     
