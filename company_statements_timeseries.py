@@ -20,13 +20,13 @@ stopwords = stopwords.words('english')
 class CompanyStatementTimeseries:
 
 
-    def __init__(self,ticker,data_path,log_time_folder,update_only=True):
+    def __init__(self,ticker,data_path,overall_logger,update_only=True,statement=None):
 
         overall_start_time = time()
         #initialize key variables
         self.ticker = ticker 
         self.csv_path = f"{data_path}csv/{ticker}/"
-        self.log_path = f"{data_path}logs/{ticker}/{log_time_folder}/"
+        self.log_path = f"{data_path}logs/{ticker}/{overall_logger.name[6:]}/"
         self.timeseries_path = f"{data_path}timeseries/"
         self.latest_statement_date_type()
 
@@ -40,17 +40,23 @@ class CompanyStatementTimeseries:
             shutil.rmtree(f"{self.timeseries_path}{ticker}", ignore_errors=True, onerror=None)  #remove if exists 
             Path(f"{self.timeseries_path}{ticker}").mkdir(parents=True, exist_ok=True)
 
-        #loop through each statement
-        for dirname, _, filenames in os.walk(f"{self.csv_path}/{ self.latest_statement_date_type}"):
-            for statement in filenames:
-                timeseries_logger.info(f"__{statement}__")
-                self.create_statement_time_series(statement,timeseries_logger)
+        
+        if statement is None: #loop through each statement
+            for dirname, _, filenames in os.walk(f"{self.csv_path}/{ self.latest_statement_date_type}"):
+                for statement in filenames:
+                    timeseries_logger.info(f"__{statement}__")
+                    self.create_statement_time_series(statement,timeseries_logger)
 
-        self.statement_count = 0
-        for dirname, _, filenames in os.walk(f"{self.csv_path}/{ self.latest_statement_date_type}"):
-            for filename in filenames:
-                if filename[-4:] == '.csv': 
-                    self.statement_count += 1
+            self.statement_count = 0
+            for dirname, _, filenames in os.walk(f"{self.csv_path}/{self.latest_statement_date_type}"):
+                for filename in filenames:
+                    if filename[-4:] == '.csv': 
+                        self.statement_count += 1
+        else: #for debugging purposes: only look at statement with issue
+            timeseries_logger.info(f"__{statement}__")
+            self.create_statement_time_series(statement,timeseries_logger)
+            self.statement_count = 1
+
 
         timeseries_logger.info(f"Statement count: {self.statement_count}")
         time_taken = f"Total time: {time() - overall_start_time}"
@@ -256,6 +262,9 @@ class CompanyStatementTimeseries:
 
         for metric in np.unique(tag_map.keys()):
             timeseries_df = timeseries_df.drop(metric,axis=0)
+
+        #timeseries_df.columns = pd.DatetimeIndex(timeseries_df.columns) 
+        timeseries_df = timeseries_df.sort_index(axis=1,ascending=False)
 
         if len(list_10k) > 0:
             timeseries_df = self.adjust_for_10k(list_10k, statement_dict,timeseries_df,tag_map)

@@ -28,13 +28,13 @@ import timeit
 
 class CompanyStatementsJSON:
 
-    def __init__(self,ticker,data_path,log_time_folder,update_only=True):
+    def __init__(self,ticker,data_path,overall_logger,update_only=True):
 
 
         self.ticker = ticker 
         self.json_path = f'{data_path}json/'
         self.xbrl_path = f'{data_path}xbrl/{ticker}/' 
-        self.log_path = f'{data_path}logs/{ticker}/{log_time_folder}/' 
+        self.log_path = f'{data_path}logs/{ticker}/{overall_logger.name[6:]}/' 
 
         start_time = time()
 
@@ -192,7 +192,7 @@ class CompanyStatementsJSON:
             stock_dict_up_to_labels['labels'] = {} 
             try:
                 stock_dict_up_to_labels['labels'] = label_lookup_dict[tag_name_str]['labels']
-            except: 
+            except KeyError: 
                 json_logger.error(f"Couldn't find {tag_name_str} label")
 
         return stock_dict_up_to_labels 
@@ -248,7 +248,7 @@ class CompanyStatementsJSON:
         stock_dict_excl_value_and_date[freq] = self.create_dict_if_new_key(obs_date, stock_dict_excl_value_and_date[freq])
         try:
             stock_dict_excl_value_and_date[freq][obs_date] = int(tag.text)
-        except:
+        except ValueError:
             stock_dict_excl_value_and_date[freq][obs_date] = float(tag.text)
 
         #look at the sign of the metric
@@ -429,7 +429,7 @@ class CompanyStatementsJSON:
             document_end_date = parsed_xml_dict['instance'].xpath("//*[local-name()='DocumentPeriodEndDate']")[0].text
             #.find('dei:documentperiodenddate').get_text()
         except: 
-            print('dei:documentperiodenddate not found in {}'.format(instance_filepath))
+            json_logger.warning('dei:documentperiodenddate not found in {}'.format(instance_filepath))
                 
         if document_end_date is not None:
 

@@ -21,24 +21,26 @@ import json
 import requests
 import urllib.parse
 
+import sys
+
 
 class CompanyStockrowReconcilation: 
 
-    def __init__(self,ticker,data_path,log_time_folder,update_only=True):
+    def __init__(self,ticker,data_path,log_time_folder,refresh=False):
 
         self.ticker = ticker 
         self.log_path = f"{data_path}logs/{ticker}/{log_time_folder}/"
         self.timeseries_path = f"{data_path}timeseries/"
-        self.stockrow_path = f"{data_path}stockrow/"
+        self.stockrow_path = f"{data_path}stockrow/{ticker}"
 
         start_time = time()
 
-        if not update_only:
+        if refresh:
             shutil.rmtree(f"{self.stockrow_path}", ignore_errors=True, onerror=None)  #remove if exists 
 
 
         stockrow_logger = setup_logging(self.log_path,'stockrow.log',f'stockrow_{ticker}')
-        stockrow_logger.info(f'_____{ticker}_TIMESERIES_____')
+        stockrow_logger.info(f'_____{ticker}_STOCKROW_____')
 
         statements_downloaded = self.download_stock_row_statements(ticker,data_path,stockrow_logger)
 
@@ -68,19 +70,24 @@ class CompanyStockrowReconcilation:
 
         downloaded = True
 
+
         for statement in ['Income Statement','Cash Flow','Balance Sheet']:
-            url = f'https://stockrow.com/api/companies/{ticker}/financials.xlsx?dimension=Q&section={urllib.parse.quote(statement)}&sort=desc'
-            try:
-                r = requests.get(url, allow_redirects=True)
-            except: 
-                stockrow_logger.error(f'Failed to download {statement} for {ticker}')
+
+            if os.path.exists(f'{stockrow_folder}/{statement}.xlsx'): 
+                stockrow_logger.info(f"Didn't download {statement} for {ticker} because file already exists")
+            else: 
+                url = f'https://stockrow.com/api/companies/{ticker}/financials.xlsx?dimension=Q&section={urllib.parse.quote(statement)}&sort=desc'
+                try:
+                    r = requests.get(url, allow_redirects=True)
+                except: 
+                    stockrow_logger.error(f'Failed to download {statement} for {ticker}')
 
 
-            if (b'The page you were looking for doesn\'t exist (404)' in r.content):
-                stockrow_logger.warning(f"{statement}.xlsx' not found") 
-                downloaded = False 
-            else:
-                open(f'{stockrow_folder}/{statement}.xlsx', 'wb').write(r.content)
+                if (b'The page you were looking for doesn\'t exist (404)' in r.content):
+                    stockrow_logger.warning(f"{statement}.xlsx' not found") 
+                    downloaded = False 
+                else:
+                    open(f'{stockrow_folder}/{statement}.xlsx', 'wb').write(r.content)
 
         return downloaded
 
@@ -202,6 +209,8 @@ class CompanyStockrowReconcilation:
 
         max_overlap = 0
         
+        matched_mapping_dict = None
+
         for statement_csv in os.listdir(timeseries_statement_folder):
             df_timeseries = pd.read_csv(f'{timeseries_statement_folder}{statement_csv}',index_col=[0,1])
             
@@ -213,9 +222,13 @@ class CompanyStockrowReconcilation:
                 matched_statement = statement_csv 
                 matched_mapping_dict = tmp_mapping_dict
 
-        for key in matched_mapping_dict:
-            stockrow_logger.info(f"{key}: {', '.join(matched_mapping_dict[key])}")
+        if matched_mapping_dict is not None:
+            for key in matched_mapping_dict:
+                stockrow_logger.info(f"{key}: {', '.join(matched_mapping_dict[key])}")
                 #print(matched_mapping_dict[key])
+            #else: 
+            #    stockrow_logger.error(f"No match for {ticker}'s {statement}")
+            
         
         
         #df_timeseries = rename_index_labels(df_timeseries,matched_mapping_dict,matched_statement,timeseries_statement_folder)
@@ -246,16 +259,21 @@ class CompanyStockrowReconcilation:
 
 
 data_path = '../data/'
-ticker_list = ['AAPL','AXP','BA','CAT','CVX','DD','GS','IBM','INTC','JPM','KO','MMM','MRK','MSFT','PFE','PG','CSCO', 'DIS','GE','HD','JNJ','MCD', 'NKE']
 log_time_folder = datetime.now().strftime('%Y_%m_%d__%H_%M_%S')
 update_only = False 
 
-m_dict = {}
+with open(f"{data_path}mappings/ticker_tag_label_mapping.json") as json_file:
+    m_dict = json.load(json_file)
 
-for ticker in os.listdir(f"{data_path}/timeseries/"): 
-
-    company_stockrow = CompanyStockrowReconcilation(ticker,data_path,log_time_folder,update_only)
-    m_dict[ticker] = company_stockrow.m_dict 
-    with open(f"{data_path}logs/multi_match.json", 'w') as stock_json:
-        json.dump(m_dict, stock_json)
+for ticker in os.listdir(f'{data_path}/timeseries/'): 
+    if ticker not in m_dict:
+        try:
+            company_stockrow = CompanyStockrowReconcilation(ticker,data_path,log_time_folder,update_only)
+        except:
+            print('JSON: {}. {}, line: {} in {}'.format(sys.exc_info()[0],sys.exc_info()[1],sys.exc_info()[2].tb_lineno,sys.exc_info()[2].tb_lineno))
+        else:
+            m_dict[ticker] = company_stockrow.m_dict 
+            with open(f"{data_path}mappings/ticker_tag_label_mapping.json", 'w') as json_file:
+                json.dump(m_dict, json_file)
+        
     

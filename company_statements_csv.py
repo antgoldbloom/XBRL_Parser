@@ -17,14 +17,14 @@ import shutil
 
 class CompanyStatementCSV:
 
-    def __init__(self,ticker,data_path,log_time_folder,update_only=True):
+    def __init__(self,ticker,data_path,overall_logger,update_only=True):
 
 
         ### initialize variables
         self.ticker = ticker 
         self.json_path = f'{data_path}json/'
         self.csv_path = f'{data_path}csv/{ticker}/'
-        self.log_path = f'{data_path}logs/{ticker}/{log_time_folder}/'
+        self.log_path = f'{data_path}logs/{ticker}/{overall_logger.name[6:]}/'
 
         #if not update only clear csv path
         if update_only == False:
@@ -179,9 +179,9 @@ class CompanyStatementCSV:
         df_statement.index.name = statement
 
         if len(df_statement) > 0:
-            self.save_statement(df_statement,document_end_date,document_type,statement)
+            self.save_statement(df_statement,document_end_date,document_type,statement,csv_logger)
         else: 
-            csv_logger.info(f"{statement}: had no numeric values and was not saved")
+            csv_logger.warning(f"{statement}: had no numeric values and was not saved")
 
 
     def make_filename_safe(self,statement_name):
@@ -194,17 +194,16 @@ class CompanyStatementCSV:
         return statement_name
 
 
-    def save_statement(self,df_statement,document_end_date,document_type,statement):
-        statement_name = self.stock_dict[document_end_date]['statements'][statement]['statement_name']
-
-
-        statement_folder = f"{self.csv_path}/{document_end_date} ({document_type})/"
-        
-        Path(statement_folder).mkdir(parents=True, exist_ok=True)
-        
-        statement_name = self.make_filename_safe(statement_name) 
-
-        df_statement.to_csv(f"{statement_folder}{statement_name}.csv")
+    def save_statement(self,df_statement,document_end_date,document_type,statement,csv_logger):
+        try:
+            statement_name = self.stock_dict[document_end_date]['statements'][statement]['statement_name']
+        except KeyError: 
+            csv_logger.error(f"'statement_name' not found in self.stock_dict for {document_end_date} -> {statement}")
+        else:
+            statement_folder = f"{self.csv_path}/{document_end_date} ({document_type})/"
+            Path(statement_folder).mkdir(parents=True, exist_ok=True)
+            statement_name = self.make_filename_safe(statement_name) 
+            df_statement.to_csv(f"{statement_folder}{statement_name}.csv")
 
 
 

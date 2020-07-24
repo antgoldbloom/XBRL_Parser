@@ -37,13 +37,13 @@ import logging
 import sys
 
 class CompanyStatementsXBRL:
-    def __init__(self,ticker,data_path,log_time_folder,update_only=True):
+    def __init__(self,ticker,data_path,overall_logger,update_only=True):
 
         
         overall_start_time = time.time()
 
         self.ticker = ticker 
-        self.log_path = f'{data_path}logs/{ticker}/{log_time_folder}/'
+        self.log_path = f'{data_path}logs/{ticker}/{overall_logger.name[6:]}/'
         self.xbrl_path = f'{data_path}xbrl/{ticker}/' 
         self.download_count = 0 
 
@@ -99,13 +99,13 @@ class CompanyStatementsXBRL:
                 resp = requests.get(edgar_search_url)
                 resp.raise_for_status()
             except:
-                xbrl_logger.warning("Failed to download {edgar_search_url}")
+                xbrl_logger.error("Failed to download {edgar_search_url}")
                 return []
 
             # An HTML page is returned when an invalid ticker is entered
             # Filter out non-XML responses
             if (resp.headers["Content-Type"] != "application/atom+xml"): 
-                xbrl_logger.warning(f"Ticker {self.ticker} not found (search_query: {edgar_search_url})") 
+                xbrl_logger.error(f"Ticker {self.ticker} not found (search_query: {edgar_search_url})") 
                 return []
             
             # Need xpath capabilities of lxml because some entries are mislabeled as
@@ -203,27 +203,27 @@ class CompanyStatementsXBRL:
 
             for x_file in filing.xbrl_files:
                 try:
-                
                     resp = requests.get(f"{filing.url_base}/{filing.xbrl_files[x_file]}")
                     resp.raise_for_status()
-
+                except:
+                    xbrl_logger.error(f">>Failed to download {filing.url_base}/{filing.xbrl_files[x_file]}")
+                else:
                     save_path = Path(self.xbrl_path).joinpath(
                         filing.period_end,filing.xbrl_files[x_file] 
                     )
-                # Create all parent directories as needed
+                    # Create all parent directories as needed
                     save_path.parent.mkdir(parents=True, exist_ok=True)
 
                     with open(save_path, "w", encoding="utf-8") as f:
                         f.write(resp.text)
-                # SEC limits users to 10 downloads per second
-                # Sleep >0.10s between each download to prevent rate-limiting
-                # https://github.com/jadchaar/sec-edgar-downloader/issues/24
+                    # SEC limits users to 10 downloads per second
+                    # Sleep >0.10s between each download to prevent rate-limiting
+                    # https://github.com/jadchaar/sec-edgar-downloader/issues/24
                     xbrl_logger.info(f'>>{filing.period_end}: {x_file} downloaded')
                     self.download_count += 1
 
                     time.sleep(0.15)
-                except:
-                    xbrl_logger.error(f">>Failed to download {filing.url_base}/{filing.xbrl_files[x_file]}")
+
                     
 
 
