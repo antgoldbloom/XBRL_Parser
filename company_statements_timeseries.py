@@ -353,13 +353,14 @@ class CompanyStatementTimeseries:
         timeseries_df = self.consolidate_into_single_label(timeseries_df)
 
         segment_index_list = [segment for segment in timeseries_df.index if '___' in segment]
-        for segment_xbrl in segment_index_list:
-            parent_segment_xbrl = segment_xbrl[:segment_xbrl.find('___')] 
-            segment_label = timeseries_df.loc[segment_xbrl,'label']  
-            if (parent_segment_xbrl in timeseries_df.index): 
-                parent_segment_label = timeseries_df.loc[parent_segment_xbrl,'label']  
+        for segment_xbrl_tag in segment_index_list:
+            parent_segment_xbrl_tag = segment_xbrl_tag[:segment_xbrl_tag.find('___')] 
+            segment_label = timeseries_df.loc[segment_xbrl_tag,'label']  
+            if (parent_segment_xbrl_tag in timeseries_df.index): 
+                parent_segment_label = timeseries_df.loc[parent_segment_xbrl_tag,'label']  
                 if (segment_label is not None) and (parent_segment_label is not None): 
-                    timeseries_df.loc[segment_xbrl,'label'] = parent_segment_label + ' (' + segment_label + ')'  
+                    segment_label = segment_label.replace('[Member]','').strip()
+                    timeseries_df.loc[segment_xbrl_tag,'label'] = parent_segment_label + ' (' + segment_label + ')'  
 
 
 

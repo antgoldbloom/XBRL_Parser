@@ -2,6 +2,7 @@ from company_statements_xbrl import CompanyStatementsXBRL
 from company_statements_json import CompanyStatementsJSON
 from company_statements_csv import CompanyStatementCSV
 from company_statements_timeseries import CompanyStatementTimeseries
+from company_statements_standardize import CompanyStatementStandardize 
 
 from utils import setup_logging 
 
@@ -11,6 +12,8 @@ import requests
 import csv
 import random
 
+
+import os
 import sys
 
 def random_ticker_list(list_size=500):
@@ -64,10 +67,15 @@ def xbrl_to_statement(ticker,data_path,overall_logger,update_only=True):
                 except:
                     overall_logger.error('TIMESERIES: {}. {}, line: {} in {}'.format(sys.exc_info()[0],sys.exc_info()[1],sys.exc_info()[2].tb_lineno,sys.exc_info()[2].tb_lineno))
                 else:
-                    print(f"xbrl download count: {company_xbrl.download_count}")
-                    print(f"json date count: {company_json.date_count}")
-                    print(f"csv date count: {company_csv.date_count}")
-                    print(f"timeseries statement count: {company_timeseries.statement_count}")
+                    try:
+                        company_standard = CompanyStatementStandardize(ticker,data_path,overall_logger)
+                    except:
+                        overall_logger.error('STANDARDIZED: {}. {}, line: {} in {}'.format(sys.exc_info()[0],sys.exc_info()[1],sys.exc_info()[2].tb_lineno,sys.exc_info()[2].tb_lineno))
+                    else:
+                        print(f"xbrl download count: {company_xbrl.download_count}")
+                        print(f"json date count: {company_json.date_count}")
+                        print(f"csv date count: {company_csv.date_count}")
+                        print(f"timeseries statement count: {company_timeseries.statement_count}")
 
   
 
@@ -79,10 +87,13 @@ log_time = datetime.now().strftime('%Y_%m_%d__%H_%M_%S')
 
 overall_logger = setup_logging(f"{data_path}/logs/__OVERALL__/",f'{log_time}.log',f'error_{log_time}')
 
-for ticker in ticker_list: 
+for ticker in ['AAP']: 
     overall_logger.info(f'______{ticker}______')
     start_time = time()
     xbrl_to_statement(ticker,data_path,overall_logger,update_only)
+    #company_standard = CompanyStatementStandardize(ticker,data_path,overall_logger)
+    #company_timeseries = CompanyStatementTimeseries(ticker,data_path,overall_logger,update_only)
     overall_logger.info(f"______{time()-start_time}______") 
+
 
 
