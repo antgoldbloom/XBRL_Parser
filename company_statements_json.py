@@ -221,13 +221,12 @@ class CompanyStatementsJSON:
         enddate = context_dict[contextref]['endDate']
         startdate = context_dict[contextref]['startDate']
 
-        freq = "qtd" 
-        if self.days_between(startdate,enddate) > 94: #slightly nervous about assuming variables are either QTD or YTD. Has been empircally true for every company I've looked at so far though 
+        #found most quarterly reports are either 90 or 98 days apart and annual reports are 364 or 365 days apart. Added a small buffer to account for anomalies
+        if (self.days_between(startdate,enddate) > 85) and (self.days_between(startdate,enddate) < 103): #there are some anomalies that need to be handled
+            freq = "qtd" 
+        elif (self.days_between(startdate,enddate) > 359) and (self.days_between(startdate,enddate) < 370): 
             freq = 'ytd'
 
-        #need these statements because of freq
-        #stock_dict_with_ded[statement] = create_dict_if_new_key('metrics', stock_dict_with_ded[statement])
-        #stock_dict_with_ded[statement]['metrics'] = create_dict_if_new_key(tag_name_str, stock_dict_with_ded[statement]['metrics'])
         stock_dict_excl_value_and_date = self.add_value_to_metric(stock_dict_excl_value_and_date,tag,enddate,cal_dict,tag_name_str,statement,freq) 
 
         return stock_dict_excl_value_and_date 

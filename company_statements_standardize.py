@@ -52,11 +52,76 @@ class CompanyStatementStandardize:
 
             df_timeseries = pd.read_csv(f'{self.timeseries_statement_path}{statement_dict[canonical_statement]}',index_col=[0,1]) 
             df_timeseries = self.add_standard_label(df_timeseries)
+            df_timeseries = self.clean_up_report(df_timeseries,standardized_logger,overall_logger)
             df_timeseries.to_csv(f'{self.canonical_timeseries_statement_path}{canonical_statement}.csv')
 
 
         time_taken = f"Total time: {time() - overall_start_time}"
         standardized_logger.info(time_taken)
+
+
+    def clean_up_report(self,df_timeseries,standardized_logger,overall_logger):
+
+        #drop empty columns (do this first in case min data is empty)
+        df_timeseries = df_timeseries.drop(df_timeseries.loc[:,df_timeseries.isna().all()].columns,axis=1)
+
+        df_timeseries = self.drop_extraneous_columns(df_timeseries,standardized_logger) 
+        df_timeseries = self.add_missing_columns(df_timeseries,standardized_logger,overall_logger) 
+
+
+        return df_timeseries 
+
+    def drop_extraneous_columns(self,df_timeseries,standardized_logger): 
+
+        date_col_list = df_timeseries.columns
+
+        if self.uses_regular_quarter_schedule(df_timeseries):
+            regular_quarter_dates = [date_col for date_col in date_col_list if date_col[-5:]in ['03-31','06-30','09-30','12-31']]
+            drop_column_list = date_col_list[~pd.to_datetime(date_col_list).isin(pd.date_range(start=min(regular_quarter_dates),end=max(regular_quarter_dates),freq="3M"))]
+            standardized_logger.info(f"Dropped {', '.join(drop_column_list)}")
+            df_timeseries = df_timeseries.drop(drop_column_list,axis=1)
+        else:
+            drop_column_list = []
+            for i in range(1,len(date_col_list)):
+                diff = datetime.strptime(date_col_list[i-1],'%Y-%m-%d') - datetime.strptime(date_col_list[i],'%Y-%m-%d')
+                if diff.days < 85: 
+                    drop_column_list.append(df_timeseries.loc[:,[date_col_list[i-1],date_col_list[i]]].isna().sum().idxmax())
+        
+            drop_column_list = list(np.unique(drop_column_list))
+
+        df_timeseries = df_timeseries.drop(drop_column_list,axis=1)
+        return df_timeseries 
+
+    def add_missing_columns(self,df_timeseries,standardized_logger,overall_logger): 
+
+        date_col_list = df_timeseries.columns
+
+        if self.uses_regular_quarter_schedule(df_timeseries):
+            regular_quarter_dates = [date_col for date_col in date_col_list if date_col[-5:] in ['03-31','06-30','09-30','12-31']]
+            datetime_range = pd.date_range(start=min(regular_quarter_dates),end=max(regular_quarter_dates),freq="3M")
+            missing_dates = datetime_range[~datetime_range.isin(pd.to_datetime(date_col_list))].astype(str)
+        else:
+            missing_dates = []
+            for i in range(1,len(date_col_list)):
+                diff = datetime.strptime(date_col_list[i-1],'%Y-%m-%d') - datetime.strptime(date_col_list[i],'%Y-%m-%d')
+                if diff.days > 103: 
+                    for j in range(1,int(round(diff.days/91,0))): #loop through all the missing dates
+                        missing_dates.append(datetime.strftime(datetime.strptime(date_col_list[i],'%Y-%m-%d') + timedelta(days=91*j),'%Y-%m-%d'))
+
+            df_timeseries = df_timeseries.merge(pd.DataFrame(index=df_timeseries.index,columns=missing_dates),left_index=True,right_index=True)
+            df_timeseries = df_timeseries.reindex(sorted(df_timeseries.columns,reverse=True),axis=1)#else:
+            overall_logger.error(f"Missing dates: {', '.join(missing_dates)}")
+            standardized_logger.error(f"Missing dates: {', '.join(missing_dates)}")
+    
+        return df_timeseries
+
+    def uses_regular_quarter_schedule(self,df_timeseries):
+        quarter_list = df_timeseries.columns
+        regular_quarter_dates = [date_col for date_col in quarter_list if date_col[-5:] in ['03-31','06-30','09-30','12-31']]
+        if len(regular_quarter_dates)/len(quarter_list) > 0.7: #if 70% of data columns are part of regular observation then 
+            return True
+        else:
+            return False
 
 
     def identify_statement(self,canonical_statement,standardized_logger):

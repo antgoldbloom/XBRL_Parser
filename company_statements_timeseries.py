@@ -190,7 +190,7 @@ class CompanyStatementTimeseries:
             if ds[12:16] == '10-K':
                 list_10k.append(date_cols)
 
-            if ds == list_statement_dates[0]:
+            if ds == list_statement_dates[0]: #initialize the dataframe
                 timeseries_df = tmp_df
             else:
                 new_columns = tmp_df.columns.difference(timeseries_df.columns)
@@ -277,11 +277,17 @@ class CompanyStatementTimeseries:
     def clean_up_timeseries_df(self,statement_dict,list_statement_dates,timeseries_df,timeseries_logger):
         latest_filing_mask = timeseries_df.index.isin(statement_dict[list_statement_dates[0]].index)
 
+
+        #reordering according to the latest statement
         timeseries_df_tmp = timeseries_df.loc[latest_filing_mask,:]
         timeseries_df_tmp = timeseries_df_tmp.reindex(statement_dict[list_statement_dates[0]].index)
+        #moving rows that aren't in the latest statemeent to the bottom
         timeseries_df_tmp = timeseries_df_tmp.append(timeseries_df.loc[~latest_filing_mask,:])
 
-        timeseries_df_tmp = timeseries_df_tmp.loc[~timeseries_df_tmp.isna().all(axis=1),:]
+        #remove columns with all NA
+        timeseries_df_tmp = timeseries_df_tmp.loc[~timeseries_df_tmp.isna().all(axis=1),:] 
+
+
 
         timeseries_df = timeseries_df_tmp
 
@@ -294,7 +300,7 @@ class CompanyStatementTimeseries:
         for i in range(1,len(quarter_list)):
             diff = datetime.strptime(quarter_list[i-1],'%Y-%m-%d') - datetime.strptime(quarter_list[i],'%Y-%m-%d')
 
-            if diff.days > 85 and diff.days < 95:
+            if diff.days > 85 and diff.days < 103: #most quarters are separated by between 90 and 98 days
                 sequential_quarters +=1
             else:
                 if log_missing:

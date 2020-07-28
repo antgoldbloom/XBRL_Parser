@@ -87,12 +87,11 @@ log_time = datetime.now().strftime('%Y_%m_%d__%H_%M_%S')
 
 overall_logger = setup_logging(f"{data_path}/logs/__OVERALL__/",f'{log_time}.log',f'error_{log_time}')
 
-for ticker in ['AAP']: 
+for ticker in ['CAG']: 
     overall_logger.info(f'______{ticker}______')
     start_time = time()
-    xbrl_to_statement(ticker,data_path,overall_logger,update_only)
-    #company_standard = CompanyStatementStandardize(ticker,data_path,overall_logger)
-    #company_timeseries = CompanyStatementTimeseries(ticker,data_path,overall_logger,update_only)
+    #xbrl_to_statement(ticker,data_path,overall_logger,update_only)
+    company_standard = CompanyStatementStandardize(ticker,data_path,overall_logger)
     overall_logger.info(f"______{time()-start_time}______") 
 
 
