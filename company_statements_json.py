@@ -10,7 +10,6 @@ from lxml.etree import XMLParser
 
 import re
 from pathlib import Path
-import requests
 import sys
 
 import shutil
@@ -226,6 +225,8 @@ class CompanyStatementsJSON:
             freq = "qtd" 
         elif (self.days_between(startdate,enddate) > 359) and (self.days_between(startdate,enddate) < 370): 
             freq = 'ytd'
+        else:
+            freq = 'other'
 
         stock_dict_excl_value_and_date = self.add_value_to_metric(stock_dict_excl_value_and_date,tag,enddate,cal_dict,tag_name_str,statement,freq) 
 
@@ -363,12 +364,19 @@ class CompanyStatementsJSON:
                 lab_dict[metric]['xlink:label'] = label 
                 lab_dict[metric]['labels'] = {} 
 
+        parsed_xml_labelArc = parsed_xml.xpath(f"//link:labelArc",namespaces=LABEL_NAMESPACE)
+        for labelArc in parsed_xml_labelArc:
+            for metric in lab_dict:
+                xlink_label = lab_dict[metric]['xlink:label']
+                if xlink_label == labelArc.get(f"{{{LABEL_NAMESPACE['xlink']}}}from"):
+                    lab_dict[metric]['xlink:to'] = labelArc.get(f"{{{LABEL_NAMESPACE['xlink']}}}to") 
+
         parsed_xml_lab = parsed_xml.xpath(f"//link:label",namespaces=LABEL_NAMESPACE)
 
         for lab in parsed_xml_lab:
             for metric in lab_dict:
-                xlink_label = lab_dict[metric]['xlink:label']
-                if xlink_label[4:] == lab.get(f"{{{LABEL_NAMESPACE['xlink']}}}label")[4:]: 
+                xlink_to = lab_dict[metric]['xlink:to']
+                if xlink_to == lab.get(f"{{{LABEL_NAMESPACE['xlink']}}}label"): 
                     label_role = lab.get(f"{{{LABEL_NAMESPACE['xlink']}}}role")
                     label_role = re.search('/role/[A-Za-z]+',label_role).group(0)[6:] 
                     lab_dict[metric]['labels'][label_role] = lab.text

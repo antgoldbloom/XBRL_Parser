@@ -15,6 +15,10 @@ from datetime import datetime, date
 from urllib.parse import urlencode
 
 import requests
+from requests.adapters import HTTPAdapter
+from requests.packages.urllib3.util.retry import Retry
+
+
 from lxml import etree
 from bs4 import BeautifulSoup
 import csv
@@ -26,8 +30,6 @@ import random
 import os
 
 from utils import setup_logging
-
-import requests
 
 import shutil
 import zipfile
@@ -58,6 +60,20 @@ class CompanyStatementsXBRL:
         time_taken = f"Total time: {time.time() - overall_start_time}"
         xbrl_logger.info(f"Download count: {self.download_count}")
         xbrl_logger.info(time_taken)
+
+
+    def create_http_request(self):
+        retry_strategy = Retry(
+            total=5,
+            status_forcelist=[429, 500, 502, 503, 504],
+            method_whitelist=["HEAD", "GET", "OPTIONS"]
+        )
+        adapter = HTTPAdapter(max_retries=retry_strategy)
+        http = requests.Session()
+        http.mount("https://", adapter)
+        http.mount("http://", adapter)
+
+        return http
 
 
 
@@ -96,7 +112,8 @@ class CompanyStatementsXBRL:
             )
             edgar_search_url = f"{SEC_EDGAR_BASE_URL}{qs}"
             try:
-                resp = requests.get(edgar_search_url)
+                http = self.create_http_request() 
+                resp = http.get(edgar_search_url)
                 resp.raise_for_status()
             except:
                 xbrl_logger.error("Failed to download {edgar_search_url}")
@@ -132,7 +149,8 @@ class CompanyStatementsXBRL:
 
                 url_base = '/'.join(search_result_url.split("/")[:-1])
 
-                resp = requests.get(search_result_url)
+                http = self.create_http_request() 
+                resp = http.get(search_result_url)
                 soup = BeautifulSoup(resp.content, 'lxml') 
                 
                 try:
@@ -203,7 +221,8 @@ class CompanyStatementsXBRL:
 
             for x_file in filing.xbrl_files:
                 try:
-                    resp = requests.get(f"{filing.url_base}/{filing.xbrl_files[x_file]}")
+                    http = self.create_http_request()
+                    resp = http.get(f"{filing.url_base}/{filing.xbrl_files[x_file]}")
                     resp.raise_for_status()
                 except:
                     xbrl_logger.error(f">>Failed to download {filing.url_base}/{filing.xbrl_files[x_file]}")

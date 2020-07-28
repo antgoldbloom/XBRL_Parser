@@ -364,7 +364,7 @@ class CompanyStatementTimeseries:
             segment_label = timeseries_df.loc[segment_xbrl_tag,'label']  
             if (parent_segment_xbrl_tag in timeseries_df.index): 
                 parent_segment_label = timeseries_df.loc[parent_segment_xbrl_tag,'label']  
-                if (segment_label is not None) and (parent_segment_label is not None): 
+                if (segment_label not in [None,np.nan]) and (parent_segment_label not in [None,np.nan]): 
                     segment_label = segment_label.replace('[Member]','').strip()
                     timeseries_df.loc[segment_xbrl_tag,'label'] = parent_segment_label + ' (' + segment_label + ')'  
 
