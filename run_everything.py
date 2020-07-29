@@ -36,9 +36,9 @@ def fetch_ticker_list(list_name='sample_list'):
         
 
     elif list_name == 'sample_list':
-        #ticker_list = ['GOOG','MSFT','AMZN','NVDA','ORCL','INTC','CRM','TSLA','FB','AAPL','NFLX','ZM','ZEN','ADBE','UBER','LYFT','ZG','WORK','OKTA','BYND']
-        ticker_list = ['AAPL','AXP','BA','CAT','CSCO','CVX','DD','DIS','GE','GS','HD','IBM','INTC','JNJ','JPM','KO','MCD','MMM','MRK','MSFT','NKE','PFE','PG','TRV','UNH','UTX','V','VZ']
-        ticker_list = ['WMT','XOM']
+        ticker_list = ['GOOG','MSFT','AMZN','NVDA','ORCL','INTC','CRM','TSLA','FB','AAPL','NFLX','ZM','ZEN','ADBE','UBER','LYFT','ZG','WORK','OKTA','BYND']
+        #ticker_list = ['AAPL','AXP','BA','CAT','CSCO','CVX','DD','DIS','GE','GS','HD','IBM','INTC','JNJ','JPM','KO','MCD','MMM','MRK','MSFT','NKE','PFE','PG','TRV','UNH','UTX','V','VZ']
+        #ticker_list = ['WMT','XOM']
     elif list_name == 'debug':
         ticker_list = ['ZM']
 
@@ -80,7 +80,7 @@ def xbrl_to_statement(ticker,data_path,overall_logger,update_only=True):
 
 data_path = '../data/'
 
-ticker_list = fetch_ticker_list('sp500')
+ticker_list = fetch_ticker_list('sample_list')
 update_only = False 
 log_time = datetime.now().strftime('%Y_%m_%d__%H_%M_%S')
 

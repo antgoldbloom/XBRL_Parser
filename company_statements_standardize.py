@@ -51,7 +51,7 @@ class CompanyStatementStandardize:
             statement_dict[canonical_statement] = self.identify_statement(canonical_statement,standardized_logger) 
 
             df_timeseries = pd.read_csv(f'{self.timeseries_statement_path}{statement_dict[canonical_statement]}',index_col=[0,1]) 
-            df_timeseries = self.add_standard_label(df_timeseries)
+            df_timeseries = self.add_standard_label(df_timeseries,canonical_statement)
             df_timeseries = self.clean_up_report(df_timeseries,standardized_logger,overall_logger)
             df_timeseries.to_csv(f'{self.canonical_timeseries_statement_path}{canonical_statement}.csv')
 
@@ -78,8 +78,6 @@ class CompanyStatementStandardize:
         if self.uses_regular_quarter_schedule(df_timeseries):
             regular_quarter_dates = [date_col for date_col in date_col_list if date_col[-5:]in ['03-31','06-30','09-30','12-31']]
             drop_column_list = date_col_list[~pd.to_datetime(date_col_list).isin(pd.date_range(start=min(regular_quarter_dates),end=max(regular_quarter_dates),freq="3M"))]
-            standardized_logger.info(f"Dropped {', '.join(drop_column_list)}")
-            df_timeseries = df_timeseries.drop(drop_column_list,axis=1)
         else:
             drop_column_list = []
             for i in range(1,len(date_col_list)):
@@ -89,6 +87,7 @@ class CompanyStatementStandardize:
         
             drop_column_list = list(np.unique(drop_column_list))
 
+        standardized_logger.info(f"Dropped {', '.join(drop_column_list)}")
         df_timeseries = df_timeseries.drop(drop_column_list,axis=1)
         return df_timeseries 
 
@@ -143,13 +142,13 @@ class CompanyStatementStandardize:
         return matched_statement
 
 
-    def add_standard_label(self,df_timeseries):
+    def add_standard_label(self,df_timeseries,canonical_statement):
         df_timeseries_tmp = df_timeseries
         df_timeseries_tmp = df_timeseries_tmp.loc[:,[max(df_timeseries_tmp.columns)]].dropna() #only want to match against most recent month
         df_timeseries_tmp['standard_label'] = None
 
-        for standard_label in self.mapping_dict['Income Statement']:
-            for tag in self.mapping_dict['Income Statement'][standard_label]:
+        for standard_label in self.mapping_dict[canonical_statement]:
+            for tag in self.mapping_dict[canonical_statement][standard_label]:
                 if tag in df_timeseries_tmp.index.get_level_values(1).str.extract(r'([A-Za-z-_]+)___')[0].tolist():#checking for segment                  
                     segment_slice = pd.Series(list(tag == df_timeseries_tmp.index.get_level_values(1).str.extract(r'([-A-Za-z_]+)___')[0]),index=df_timeseries_tmp.index)
                     if df_timeseries_tmp.loc[segment_slice,:].index.get_level_values(0).notna().all(): #making sure labels aren't null

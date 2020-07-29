@@ -262,18 +262,17 @@ data_path = '../data/'
 log_time_folder = datetime.now().strftime('%Y_%m_%d__%H_%M_%S')
 update_only = False 
 
-with open(f"{data_path}mappings/ticker_tag_label_mapping.json") as json_file:
-    m_dict = json.load(json_file)
+#with open(f"{data_path}mappings/ticker_tag_label_mapping.json") as json_file:
+#    m_dict = json.load(json_file)
 
 for ticker in os.listdir(f'{data_path}/timeseries/'): 
-    if ticker not in m_dict:
-        try:
-            company_stockrow = CompanyStockrowReconcilation(ticker,data_path,log_time_folder,update_only)
-        except:
-            print('JSON: {}. {}, line: {} in {}'.format(sys.exc_info()[0],sys.exc_info()[1],sys.exc_info()[2].tb_lineno,sys.exc_info()[2].tb_lineno))
-        else:
-            m_dict[ticker] = company_stockrow.m_dict 
-            with open(f"{data_path}mappings/ticker_tag_label_mapping.json", 'w') as json_file:
-                json.dump(m_dict, json_file)
+    try:
+        company_stockrow = CompanyStockrowReconcilation(ticker,data_path,log_time_folder,update_only)
+    except:
+        print('JSON: {}. {}, line: {} in {}'.format(sys.exc_info()[0],sys.exc_info()[1],sys.exc_info()[2].tb_lineno,sys.exc_info()[2].tb_lineno))
+    else:
+        #m_dict[ticker] = company_stockrow.m_dict 
+        #with open(f"{data_path}mappings/ticker_tag_label_mapping.json", 'w') as json_file:
+            #json.dump(m_dict, json_file)
         
     
