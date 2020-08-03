@@ -17,7 +17,7 @@ import shutil
 
 class CompanyStatementCSV:
 
-    def __init__(self,ticker,data_path,overall_logger,update_only=True):
+    def __init__(self,ticker,data_path,overall_logger,update_only=True,document_end_date=None):
 
 
         ### initialize variables
@@ -25,6 +25,7 @@ class CompanyStatementCSV:
         self.json_path = f'{data_path}json/'
         self.csv_path = f'{data_path}csv/{ticker}/'
         self.log_path = f'{data_path}logs/{ticker}/{overall_logger.name[6:]}/'
+        self.freq_list = ['instant','qtd','6mtd','9mtd','ytd']
 
         #if not update only clear csv path
         if update_only == False:
@@ -38,20 +39,26 @@ class CompanyStatementCSV:
         self.stock_dict= self.load_json_to_dict()
 
         #convert json to dataframe
-        for document_end_date in self.stock_dict: 
-            csv_logger.info(f"__{document_end_date}__")
-            csv_full_path = f"{self.csv_path}{document_end_date} ({self.stock_dict[document_end_date]['document_type']})"
-            if os.path.exists(csv_full_path):
-                csv_logger.info(f"{document_end_date} ({self.stock_dict[document_end_date]['document_type']}) already exists so not updating")
-            else:
-                freq = self.extract_freq(document_end_date)
-                for statement in self.stock_dict[document_end_date]['statements']: 
-                    self.stock_list_dict_to_dataframe(self.stock_dict[document_end_date]['statements'],document_end_date,self.stock_dict[document_end_date]['document_type'],statement,freq,csv_logger)
- 
+        if document_end_date is None:
+            for document_end_date in self.stock_dict: 
+                self.process_document(document_end_date, csv_logger)
+        else: #For debugging
+            self.process_document(document_end_date, csv_logger)
+
         self.date_count = len(os.listdir(self.csv_path)) 
         csv_logger.info(f"Statement Count: {self.date_count}")
         ticker_time = f"{time() - start_time}"
         csv_logger.info(f"Total time: {ticker_time}")
+
+
+    def process_document(self,document_end_date, csv_logger):
+        csv_logger.info(f"__{document_end_date}__")
+        csv_full_path = f"{self.csv_path}{document_end_date} ({self.stock_dict[document_end_date]['document_type']})"
+        if os.path.exists(csv_full_path):
+            csv_logger.info(f"{document_end_date} ({self.stock_dict[document_end_date]['document_type']}) already exists so not updating")
+        else:
+            for statement in self.stock_dict[document_end_date]['statements']: 
+                self.stock_list_dict_to_dataframe(self.stock_dict[document_end_date]['statements'],document_end_date,self.stock_dict[document_end_date]['document_type'],statement,csv_logger)
 
 
  
@@ -73,7 +80,8 @@ class CompanyStatementCSV:
         return top_level_xlink_from
 
     def create_tmp_stock_dict(self,stock_dict_with_ded_statement_metric,metric):
-        dict_key_list = ['labels','prearc_order', 'prearc_xlink:from','prearc_xlink:to','qtd','ytd','instant']
+        dict_key_list = ['labels','prearc_order', 'prearc_xlink:from','prearc_xlink:to']
+        dict_key_list.extend(self.freq_list) #add the different frequency options
         tmp_stock_dict = dict()
         tmp_stock_dict['metric'] = metric 
         for key in dict_key_list:
@@ -101,7 +109,7 @@ class CompanyStatementCSV:
             xlink_lower_metric = stock_dict_up_to_metrics[metric]['prearc_xlink:from']
             xlink_lower_metric_match = None 
 
-            WHILE_COUNT_CUTOFF = 10
+            TREE_DEPTH_CUTOFF = 10
             while_count = 0 
             while ( (xlink_lower_metric_match not in top_level_xlink_from)):
                 for metric_lower in stock_dict_up_to_metrics:  
@@ -122,7 +130,7 @@ class CompanyStatementCSV:
                         break
 
                 
-                if (xlink_lower_metric_match not in top_level_xlink_from) and (while_count == WHILE_COUNT_CUTOFF): 
+                if (xlink_lower_metric_match not in top_level_xlink_from) and (while_count == TREE_DEPTH_CUTOFF): 
                     csv_logger.warning(f"Skipped {metric_lower} due to error in presentation file") 
                     break #GIVE UP ON FINDING MATCHES AT THIS POINT
 
@@ -133,15 +141,19 @@ class CompanyStatementCSV:
 
 
 
-    def create_stock_dict_list(self,stock_dict_with_ded,statement,freq,csv_logger):
+    def create_stock_dict_list(self,stock_dict_with_ded,statement,csv_logger):
         stock_list_dict = dict()
         #pull out label chain for each numeric metric into dict
         for metric in stock_dict_with_ded[statement]['metrics']:
-            if (freq in stock_dict_with_ded[statement]['metrics'][metric]) or ('instant' in stock_dict_with_ded[statement]['metrics'][metric]): 
+            metric_keys = stock_dict_with_ded[statement]['metrics'][metric].keys() 
+            freq_key_list = [freq_key for freq_key in metric_keys if freq_key in self.freq_list]
+            if len(freq_key_list) > 0:  #means key with data exists in that metric
                 stock_list_dict = self.add_to_stock_list_dict(stock_dict_with_ded,stock_list_dict,statement,metric,stock_dict_with_ded[statement]['metrics'],csv_logger)
             if 'segment' in stock_dict_with_ded[statement]['metrics'][metric]: 
                 for segment_metric in stock_dict_with_ded[statement]['metrics'][metric]['segment']:
-                    if (freq in stock_dict_with_ded[statement]['metrics'][metric]['segment'][segment_metric]) or ('instant' in stock_dict_with_ded[statement]['metrics'][metric]['segment'][segment_metric]):   
+                    segment_metric_keys = stock_dict_with_ded[statement]['metrics'][metric]['segment'][segment_metric].keys() 
+                    segment_freq_key_list = [freq_key for freq_key in segment_metric_keys if freq_key in self.freq_list]
+                    if len(segment_freq_key_list) > 0:  #means key with data exists in that metric
                         sld_index = f"{metric}___{segment_metric}"
                         stock_list_dict = self.add_to_stock_list_dict(stock_dict_with_ded,stock_list_dict,statement,segment_metric,stock_dict_with_ded[statement]['metrics'][metric]['segment'],csv_logger,True,sld_index) #order segments just below parent item
                         if metric in stock_list_dict:
@@ -151,30 +163,35 @@ class CompanyStatementCSV:
         return stock_list_dict                    
 
 
-    def stock_list_dict_to_dataframe(self,stock_dict_with_ded,document_end_date,document_type,statement,freq,csv_logger):
+    def stock_list_dict_to_dataframe(self,stock_dict_with_ded,document_end_date,document_type,statement,csv_logger):
 
-        stock_list_dict = self.create_stock_dict_list(stock_dict_with_ded,statement,freq,csv_logger) 
+        stock_list_dict = self.create_stock_dict_list(stock_dict_with_ded,statement,csv_logger) 
 
         metric_list = []
         for row in stock_list_dict:
             metric_list.append(row)
 
-        df_statement = pd.DataFrame(index=metric_list)  
+        
+        df_statement = pd.DataFrame(index=pd.MultiIndex.from_product([metric_list, self.freq_list], names=['xbrl_tag', 'period_type']))  
 
 
         for metric in stock_list_dict:
 
             if 'labels' in stock_list_dict[metric][0]:
                 label_keys =  stock_list_dict[metric][0]['labels'].keys()
-                for key in label_keys:
-                    df_statement.loc[df_statement.index==metric,key] =  stock_list_dict[metric][0]['labels'][key]  
+                for label_key in label_keys:
+                    df_statement.loc[pd.IndexSlice[metric,:],label_key] =  stock_list_dict[metric][0]['labels'][label_key]  
+                    #df_statement.loc[(metric,period_type),metric_date] =  stock_list_dict[metric][0][period_type][metric_date]
 
-            for period_type in [freq,'instant']: 
+            for period_type in self.freq_list: 
                 if period_type in stock_list_dict[metric][0]:
-                    df_statement.loc[df_statement.index==metric,'period_type'] = period_type 
                     for metric_date in stock_list_dict[metric][0][period_type]:
-                        df_statement.loc[df_statement.index==metric,metric_date] =  stock_list_dict[metric][0][period_type][metric_date]
+                        df_statement.loc[(metric,period_type),metric_date] =  stock_list_dict[metric][0][period_type][metric_date]
             
+        #drop rows with nas in the columns that should have values
+        date_cols = [column for column in df_statement.columns if re.match('[0-9]{4}-[0-9]{2}-[0-9]{2}',column)]
+        df_statement = df_statement.loc[df_statement[date_cols].notna().any(axis=1),]
+
         df_statement = df_statement.reindex(sorted(df_statement.columns,reverse=True), axis=1)
         df_statement.index.name = statement
 
@@ -205,15 +222,6 @@ class CompanyStatementCSV:
             statement_name = self.make_filename_safe(statement_name) 
             df_statement.to_csv(f"{statement_folder}{statement_name}.csv")
 
-
-
-    def extract_freq(self,document_end_date):
-        if self.stock_dict[document_end_date]['document_type'] == '10-Q':  
-            freq = 'qtd'
-        elif self.stock_dict[document_end_date]['document_type'] in ['10-K']:  
-            freq = 'ytd'
-
-        return freq
 
 
 

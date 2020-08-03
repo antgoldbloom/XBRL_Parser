@@ -29,6 +29,8 @@ class CompanyStatementTimeseries:
         self.log_path = f"{data_path}logs/{ticker}/{overall_logger.name[6:]}/"
         self.timeseries_path = f"{data_path}timeseries/"
         self.latest_statement_date_type()
+        self.freq_list = ['instant','qtd','6mtd','9mtd','ytd']
+
 
         
         #configure logging
@@ -68,6 +70,11 @@ class CompanyStatementTimeseries:
         statement_dict = self.load_statements_into_dict(statement,timeseries_logger) 
         list_statement_dates = sorted(list(statement_dict.keys()),reverse=True)
 
+
+        import pickle
+        with open('../data/AAPL.pickle', 'wb') as f:
+            pickle.dump(statement_dict, f, protocol=pickle.HIGHEST_PROTOCOL)
+
         statement_folder, statement_name = self.statement_file_path_and_name(statement)
         statement_full_path = os.path.join(statement_folder,statement_name)
         needs_update = True 
@@ -104,7 +111,7 @@ class CompanyStatementTimeseries:
     def load_statements_into_dict(self,statement,timeseries_logger):
 
         statement_dict = {}
-        statement_dict[self.latest_statement_date_type] = pd.read_csv(os.path.join(f"{self.csv_path}{self.latest_statement_date_type}",statement),index_col=[0])
+        statement_dict[self.latest_statement_date_type] = pd.read_csv(os.path.join(f"{self.csv_path}{self.latest_statement_date_type}",statement),index_col=[0,1])
 
         missing_list = []
         low_overlap_list = [] 
@@ -121,8 +128,8 @@ class CompanyStatementTimeseries:
                         break #if filenames map perfectly don't even bother looking for column overlap
                     elif csim > 0.3:
         
-                        comp_df = pd.read_csv(os.path.join(dirname,filename),index_col=[0])
-                        overlap_percentage = len(set(statement_dict[self.latest_statement_date_type].index).intersection(comp_df.index))/len(statement_dict[self.latest_statement_date_type])  
+                        comp_df = pd.read_csv(os.path.join(dirname,filename),index_col=[0,1])
+                        overlap_percentage = len(set(statement_dict[self.latest_statement_date_type].index.get_level_values(0)).intersection(comp_df.index.get_level_values(0)))/len(statement_dict[self.latest_statement_date_type])  
                     
                         if overlap_percentage > max_overlap:
                             max_overlap = overlap_percentage
@@ -131,7 +138,7 @@ class CompanyStatementTimeseries:
             if max_overlap > 0:
                 full_path = os.path.join(dirname,most_likely_statement_match)
                 ds = re.search('[0-9]{4}-[0-9]{2}-[0-9]{2} \(10-[Q|K]\)',full_path)[0]
-                statement_dict[ds] = pd.read_csv(full_path,index_col=[0])
+                statement_dict[ds] = pd.read_csv(full_path,index_col=[0,1])
                 missing_list.remove(dirname)
 
 
@@ -181,14 +188,36 @@ class CompanyStatementTimeseries:
     def populate_timeseries_df(self,statement_dict,list_statement_dates,timeseries_logger):
 
         list_10k = []
+        needs_adjustment = {}
+
 
         for ds in list_statement_dates:
             
+            needs_adjustment[ds] = {}
+
             date_cols = self.date_columns_from_statement(statement_dict[ds].columns) 
             tmp_df = statement_dict[ds][date_cols]
 
-            if ds[12:16] == '10-K':
-                list_10k.append(date_cols)
+            metric_period_dict = {}
+
+            for ix in tmp_df.index:
+                if ix[0] not in metric_period_dict:
+                    metric_period_dict[ix[0]] = []
+
+                metric_period_dict[ix[0]].append(ix[1])
+
+
+            index_to_keep_list = []
+            for xbrl_tag in metric_period_dict:
+                for freq in self.freq_list:
+                    if freq in metric_period_dict[xbrl_tag]:
+                        index_to_keep_list.append((xbrl_tag,freq))
+                        if freq in ['6mtd','9mtd','ytd']:
+                            needs_adjustment[ds][xbrl_tag] = freq
+                        break
+
+            tmp_df = tmp_df.loc[index_to_keep_list,:]
+            tmp_df.index = tmp_df.index.droplevel(1) #remove period_type
 
             if ds == list_statement_dates[0]: #initialize the dataframe
                 timeseries_df = tmp_df
@@ -231,8 +260,8 @@ class CompanyStatementTimeseries:
                         sequential_quarters = list(timeseries_df.columns)[date_col_10k_index:(date_col_10k_index+4)]
                         sequential_quarters_count = self.count_sequential_quarters(sequential_quarters)
                         if sequential_quarters_count == 3:
-                            not_nan_bool = timeseries_df.loc[tmp_df.index,sequential_quarters].notna().all(axis=1)
-                            not_nan_rows = tmp_df[not_nan_bool].index 
+                            not_nan_bool = timeseries_df.loc[tmp_df.index,sequential_quarters].notna().all(axis=1) & tmp_df.loc[:,date_col].notna() 
+                            not_nan_rows = tmp_df.loc[not_nan_bool,:].index 
                             is_nan_bool = timeseries_df.loc[tmp_df.index,sequential_quarters].isna().any(axis=1)
                             is_nan_rows = tmp_df[is_nan_bool].index 
                             timeseries_df.loc[not_nan_rows,date_col] = tmp_df.loc[not_nan_rows,date_col] - timeseries_df.loc[not_nan_rows,list(timeseries_df.columns)[date_col_10k_index+1:date_col_10k_index+4]].sum(axis=1)  

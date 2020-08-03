@@ -27,8 +27,8 @@ import timeit
 
 class CompanyStatementsJSON:
 
-    def __init__(self,ticker,data_path,overall_logger,update_only=True):
-
+    def __init__(self,ticker,data_path,overall_logger,update_only=True,document_end_date=None):
+        #document_end_date is for debugging
 
         self.ticker = ticker 
         self.json_path = f'{data_path}json/'
@@ -47,13 +47,11 @@ class CompanyStatementsJSON:
             with open(json_path_and_file) as stock_json:
                 stock_dict = json.loads(stock_json.read())  
                 
-            stock_dict = self.create_stock_dict(stock_dict,json_logger)
-        elif os.path.exists(json_path_and_file): 
-            os.remove(json_path_and_file)
-            stock_dict = self.create_stock_dict({},json_logger)
+            stock_dict = self.create_stock_dict(stock_dict,json_logger,document_end_date)
         else:
-            stock_dict = self.create_stock_dict({},json_logger)
-
+            if os.path.exists(json_path_and_file): 
+                os.remove(json_path_and_file)
+            stock_dict = self.create_stock_dict({},json_logger,document_end_date)
 
 
         with open(f"{self.json_path}{ticker}.json", 'w') as stock_json:
@@ -64,47 +62,54 @@ class CompanyStatementsJSON:
         json_logger.info(f"Statement Count: {self.date_count}")
         json_logger.info(f"Total time: {time() - start_time}")
 
+    def create_stock_dict(self,stock_dict,json_logger,document_end_date=None):
+        if document_end_date is None:
+            for document_end_date in os.listdir(self.xbrl_path):
+                if document_end_date not in stock_dict:
+                    stock_dict = self.parse_xbrl_and_add_to_stock_dict(stock_dict,json_logger,document_end_date)
+                else:
+                    json_logger.info(f"{document_end_date} already in {self.ticker}.json")
+        else:
+            stock_dict = self.parse_xbrl_and_add_to_stock_dict(stock_dict,json_logger,document_end_date)
 
+        return stock_dict
 
-    def create_stock_dict(self,stock_dict,json_logger):
+    def parse_xbrl_and_add_to_stock_dict(self,stock_dict,json_logger,document_end_date):
         
-        for dirname, _, filenames in os.walk(self.xbrl_path):
-            parsed_xml_dict = dict()
-            if dirname[-10:] not in stock_dict:
-                for filename in filenames:
-                    if (filename[-7:-4] == 'pre'):
-                        parsed_xml_dict['pre'] = self.create_soup_object(dirname,filename) #eventually should change to lxml 
-                    elif (filename[-7:-4] == 'lab'):
-                        lab_filepath = os.path.join(dirname,filename)
-                        try:
-                            parsed_xml_dict['lab']= etree.parse(lab_filepath)
-                        except:
-                            json_logger.error(f"Couldn't parse xml lab file: {lab_filepath}")
-                    elif (filename[-7:-4] in ['cal']):
-                        cal_filepath = os.path.join(dirname,filename)
-                        try:
-                            parsed_xml_dict['cal']= etree.parse(cal_filepath)
-                        except:
-                            json_logger.error(f"Couldn't parse xml cal file: {cal_filepath}")
-                    elif (filename[-3:] == 'xml'):
-                        instance_filepath = os.path.join(dirname,filename)
-                        huge_tree_parser = XMLParser(huge_tree=True)
-                        try:
-                            parsed_xml_dict['instance']= etree.parse(instance_filepath,parser=huge_tree_parser)
-                        except:
-                            json_logger.error(f"Couldn't parse xml instance file: {instance_filepath}")
-                    elif (filename[-3:] == 'xsd'):
-                        parsed_xml_dict['xsd'] = self.create_soup_object(dirname,filename) #eventually should change to lxml 
+        parsed_xml_dict = dict()
+        dirname = f'{self.xbrl_path}{document_end_date}'
+        for filename in os.listdir(dirname):
+            if (filename[-7:-4] == 'pre'):
+                parsed_xml_dict['pre'] = self.create_soup_object(dirname,filename) #eventually should change to lxml 
+            elif (filename[-7:-4] == 'lab'):
+                lab_filepath = os.path.join(dirname,filename)
+                try:
+                    parsed_xml_dict['lab']= etree.parse(lab_filepath)
+                except:
+                    json_logger.error(f"Couldn't parse xml lab file: {lab_filepath}")
+            elif (filename[-7:-4] in ['cal']):
+                cal_filepath = os.path.join(dirname,filename)
+                try:
+                    parsed_xml_dict['cal']= etree.parse(cal_filepath)
+                except:
+                    json_logger.error(f"Couldn't parse xml cal file: {cal_filepath}")
+            elif (filename[-3:] == 'xml'):
+                instance_filepath = os.path.join(dirname,filename)
+                huge_tree_parser = XMLParser(huge_tree=True)
+                try:
+                    parsed_xml_dict['instance']= etree.parse(instance_filepath,parser=huge_tree_parser)
+                except:
+                    json_logger.error(f"Couldn't parse xml instance file: {instance_filepath}")
+            elif (filename[-3:] == 'xsd'):
+                parsed_xml_dict['xsd'] = self.create_soup_object(dirname,filename) #eventually should change to lxml 
 
 
-                
-                if parsed_xml_dict.keys() >= {"lab", "pre","instance","xsd","cal"}:
-                    stock_dict = self.add_to_stock_dict(stock_dict,parsed_xml_dict,instance_filepath,json_logger)
-                    json_logger.info(f"{dirname[-10:]} added")
-                elif re.match('[0-9]{4}-[0-9]{2}-[0-9]{2}',dirname[dirname.rfind('/')+1:]): #if in a directory with a date, print a wanring
-                    json_logger.info(f"Warning: missing XBRL file for {self.ticker} in {dirname}")
-            else:
-                json_logger.info(f"{dirname[-10:]} already in {self.ticker}.json")
+            
+        if parsed_xml_dict.keys() >= {"lab", "pre","instance","xsd","cal"}:
+            stock_dict = self.add_to_stock_dict(stock_dict,parsed_xml_dict,instance_filepath,json_logger)
+            json_logger.info(f"{dirname[-10:]} added")
+        elif re.match('[0-9]{4}-[0-9]{2}-[0-9]{2}',dirname[dirname.rfind('/')+1:]): #if in a directory with a date, print a wanring
+                json_logger.info(f"Warning: missing XBRL file for {self.ticker} in {dirname}")
             
         return stock_dict
         
@@ -223,7 +228,11 @@ class CompanyStatementsJSON:
         #found most quarterly reports are either 90 or 98 days apart and annual reports are 364 or 365 days apart. Added a small buffer to account for anomalies
         if (self.days_between(startdate,enddate) > 85) and (self.days_between(startdate,enddate) < 103): #there are some anomalies that need to be handled
             freq = "qtd" 
-        elif (self.days_between(startdate,enddate) > 359) and (self.days_between(startdate,enddate) < 370): 
+        elif (self.days_between(startdate,enddate) > 177) and (self.days_between(startdate,enddate) < 194): #there are some anomalies that need to be handled
+            freq = "6mtd" 
+        elif (self.days_between(startdate,enddate) > 267) and (self.days_between(startdate,enddate) < 285): #there are some anomalies that need to be handled
+            freq = "9mtd" 
+        elif (self.days_between(startdate,enddate) > 359) and (self.days_between(startdate,enddate) < 376): 
             freq = 'ytd'
         else:
             freq = 'other'
