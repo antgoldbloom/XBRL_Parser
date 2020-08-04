@@ -9,6 +9,8 @@ from datetime import datetime
 from time import time
 
 
+from collections import OrderedDict 
+
 from utils import setup_logging 
 
 import string
@@ -56,7 +58,7 @@ class CompanyStatementTimeseries:
                         self.statement_count += 1
         else: #for debugging purposes: only look at statement with issue
             timeseries_logger.info(f"__{statement}__")
-            self.create_statement_time_series(statement,timeseries_logger)
+            self.create_statement_time_series(statement,timeseries_logger,overall_logger)
             self.statement_count = 1
 
 
@@ -66,14 +68,11 @@ class CompanyStatementTimeseries:
 
 
 
-    def create_statement_time_series(self,statement,timeseries_logger):
+    def create_statement_time_series(self,statement,timeseries_logger,overall_logger):
         statement_dict = self.load_statements_into_dict(statement,timeseries_logger) 
         list_statement_dates = sorted(list(statement_dict.keys()),reverse=True)
 
 
-        import pickle
-        with open('../data/AAPL.pickle', 'wb') as f:
-            pickle.dump(statement_dict, f, protocol=pickle.HIGHEST_PROTOCOL)
 
         statement_folder, statement_name = self.statement_file_path_and_name(statement)
         statement_full_path = os.path.join(statement_folder,statement_name)
@@ -88,14 +87,14 @@ class CompanyStatementTimeseries:
                 os.remove(statement_full_path)
 
         if needs_update == True:
-            timeseries_df = self.populate_timeseries(statement,statement_dict,list_statement_dates,timeseries_logger) 
+            timeseries_df = self.populate_timeseries(statement,statement_dict,list_statement_dates,timeseries_logger,overall_logger) 
             timeseries_df = self.add_labels(timeseries_df,statement_dict,list_statement_dates)
             self.save_file(statement,timeseries_df,timeseries_logger)
 
-    def populate_timeseries(self,statement,statement_dict,list_statement_dates,timeseries_logger):
+    def populate_timeseries(self,statement,statement_dict,list_statement_dates,timeseries_logger,overall_logger):
 
-        timeseries_df = self.populate_timeseries_df(statement_dict,list_statement_dates,timeseries_logger) 
-        timeseries_df = self.clean_up_timeseries_df(statement_dict,list_statement_dates,timeseries_df,timeseries_logger)
+        timeseries_df = self.populate_timeseries_df(statement_dict,list_statement_dates,timeseries_logger,overall_logger) 
+        timeseries_df = self.clean_up_timeseries_df(statement_dict[list_statement_dates[0]],timeseries_df,timeseries_logger)
         self.check_dataframe(timeseries_df,timeseries_logger)
         return timeseries_df
 
@@ -185,7 +184,7 @@ class CompanyStatementTimeseries:
     def date_columns_from_statement(self,columns):
         return [date_col for date_col in columns if re.match('[0-9]{4}-[0-9]{2}-[0-9]{2}',date_col)]
 
-    def populate_timeseries_df(self,statement_dict,list_statement_dates,timeseries_logger):
+    def populate_timeseries_df(self,statement_dict,list_statement_dates,timeseries_logger,overall_logger):
 
         list_10k = []
         needs_adjustment = {}
@@ -193,7 +192,6 @@ class CompanyStatementTimeseries:
 
         for ds in list_statement_dates:
             
-            needs_adjustment[ds] = {}
 
             date_cols = self.date_columns_from_statement(statement_dict[ds].columns) 
             tmp_df = statement_dict[ds][date_cols]
@@ -213,7 +211,10 @@ class CompanyStatementTimeseries:
                     if freq in metric_period_dict[xbrl_tag]:
                         index_to_keep_list.append((xbrl_tag,freq))
                         if freq in ['6mtd','9mtd','ytd']:
-                            needs_adjustment[ds][xbrl_tag] = freq
+                            if xbrl_tag not in needs_adjustment:
+                                needs_adjustment[xbrl_tag] = {}                             
+                            date_col = ds[:10]
+                            needs_adjustment[xbrl_tag][date_col] = freq
                         break
 
             tmp_df = tmp_df.loc[index_to_keep_list,:]
@@ -226,53 +227,63 @@ class CompanyStatementTimeseries:
                 timeseries_df = timeseries_df.merge(tmp_df[new_columns],left_index=True,right_index=True,how='outer')
                 timeseries_df.loc[timeseries_df.index.isin(tmp_df.index),timeseries_df.columns.isin(tmp_df)] = tmp_df
 
-        timeseries_df = self.adjust_for_tag_changes_and_10k(list_10k,statement_dict,timeseries_df,timeseries_logger)
+        timeseries_df = self.adjust_for_tag_changes_and_period_types(needs_adjustment,statement_dict,timeseries_df,timeseries_logger,overall_logger)
+        
 
         return timeseries_df
 
 
+    def apply_tag_map_to_needs_adjustment_dict(self,needs_adjustment, tag_map):
+        tag_map_needs_adjustment_intersection = set(tag_map.keys()).intersection(needs_adjustment.keys())
 
-    def adjust_for_10k(self,list_10k,statement_dict,timeseries_df,tag_map):
-        list_10k = sorted(np.unique(np.concatenate(list_10k).flat),reverse=True)
-        timeseries_df = timeseries_df.reindex(sorted(timeseries_df.columns,reverse=True),axis=1)
+        for matched_xbrl_tag in tag_map_needs_adjustment_intersection:
+            for xbrl_tag in tag_map[matched_xbrl_tag]:
+                if xbrl_tag not in needs_adjustment:
+                   needs_adjustment[xbrl_tag] =  needs_adjustment[matched_xbrl_tag]
+                else:
+                    needs_adjustment[xbrl_tag].update(needs_adjustment[matched_xbrl_tag])
+                del(needs_adjustment[matched_xbrl_tag])
+                needs_adjustment[xbrl_tag] = OrderedDict(sorted(needs_adjustment[xbrl_tag].items(),reverse=True))
+        return needs_adjustment
 
-        for item_10k in list_10k:
-            statement_dict_key = f"{item_10k} (10-K)"
+    def period_type_to_months(self,period_type):
+        if period_type == 'ytd':
+            return 12
+        elif period_type == '9mtd':
+            return 9
+        elif period_type == '6mtd':
+            return 6
+        elif period_type == 'qtd':
+            return 3
+        else:
+            return None
+    
+    def adjust_to_quarterly(self,needs_adjustment, tag_map, timeseries_df,timeseries_logger,overall_logger):
+        needs_adjustment = self.apply_tag_map_to_needs_adjustment_dict(needs_adjustment, tag_map)
 
-            if statement_dict_key in statement_dict:
-                tmp_df = statement_dict[statement_dict_key]
+        for xbrl_tag in needs_adjustment:
+            for date_col in needs_adjustment[xbrl_tag]:
+                months_in_metric = self.period_type_to_months(needs_adjustment[xbrl_tag][date_col])
+                month_index = timeseries_df.columns.get_loc(date_col)
+                tag_index = timeseries_df.index.get_loc(xbrl_tag)
 
-                tag_map_tmp_df_intersection = set(tag_map.keys()).intersection(tmp_df.index)
-                if len(tag_map_tmp_df_intersection) > 0:
+                i = 1
+                while (months_in_metric > 3):
 
-                    for metric_match in tag_map_tmp_df_intersection: 
-                        for metric in tag_map[metric_match]:
-                            tmp_df.loc[metric,:] = tmp_df.loc[metric_match,:] 
-                        tmp_df = tmp_df.drop(metric_match,axis=0)
+                    if timeseries_df.columns[month_index+i] in needs_adjustment[xbrl_tag]:
+                        months_in_metric = months_in_metric - self.period_type_to_months(needs_adjustment[xbrl_tag][timeseries_df.columns[month_index+i]])
+                    else:
+                        months_in_metric = months_in_metric - 3
 
-                tmp_df = tmp_df[tmp_df['period_type'] == 'ytd'] 
-                tmp_df = tmp_df[tmp_df.index.isin(timeseries_df.index)]
-
-                for date_col in [date_col for date_col in statement_dict[statement_dict_key].columns if re.match('[0-9]{4}-[0-9]{2}-[0-9]{2}',date_col)]: 
-                    if date_col in list_10k:
-                        date_col_10k_index = (list(timeseries_df.columns).index(date_col))
-
-                        sequential_quarters = list(timeseries_df.columns)[date_col_10k_index:(date_col_10k_index+4)]
-                        sequential_quarters_count = self.count_sequential_quarters(sequential_quarters)
-                        if sequential_quarters_count == 3:
-                            not_nan_bool = timeseries_df.loc[tmp_df.index,sequential_quarters].notna().all(axis=1) & tmp_df.loc[:,date_col].notna() 
-                            not_nan_rows = tmp_df.loc[not_nan_bool,:].index 
-                            is_nan_bool = timeseries_df.loc[tmp_df.index,sequential_quarters].isna().any(axis=1)
-                            is_nan_rows = tmp_df[is_nan_bool].index 
-                            timeseries_df.loc[not_nan_rows,date_col] = tmp_df.loc[not_nan_rows,date_col] - timeseries_df.loc[not_nan_rows,list(timeseries_df.columns)[date_col_10k_index+1:date_col_10k_index+4]].sum(axis=1)  
-                            timeseries_df.loc[is_nan_rows,date_col] = None 
-                        else:
-                            timeseries_df.loc[tmp_df.index,date_col] = None 
+                    if months_in_metric >= 3:
+                        timeseries_df.iloc[tag_index,month_index] = timeseries_df.iloc[tag_index,month_index] - timeseries_df.iloc[tag_index,month_index+i]
+                    else:
+                        timeseries_logger.error(f"Error adjusting period type for {xbrl_tag} on {date_col}") 
+                    i += 1
 
         return timeseries_df
 
-
-    def adjust_for_tag_changes_and_10k(self,list_10k,statement_dict,timeseries_df,timeseries_logger): 
+    def adjust_for_tag_changes_and_period_types(self,needs_adjustment,statement_dict,timeseries_df,timeseries_logger,overall_logger): 
 
         tag_map = {} 
         
@@ -295,21 +306,39 @@ class CompanyStatementTimeseries:
         #timeseries_df.columns = pd.DatetimeIndex(timeseries_df.columns) 
         timeseries_df = timeseries_df.sort_index(axis=1,ascending=False)
 
-        if len(list_10k) > 0:
-            timeseries_df = self.adjust_for_10k(list_10k, statement_dict,timeseries_df,tag_map)
+        import pickle
+        with open('../data/debug/needs_adjustment.pickle', 'wb') as f:
+            pickle.dump(needs_adjustment, f, protocol=pickle.HIGHEST_PROTOCOL)
+            
+        with open('../data/debug/tag_map.pickle', 'wb') as f:
+            pickle.dump(tag_map, f, protocol=pickle.HIGHEST_PROTOCOL)
+
+        with open('../data/debug/statement_dict.pickle', 'wb') as f:
+            pickle.dump(statement_dict, f, protocol=pickle.HIGHEST_PROTOCOL)
+
+        with open('../data/debug/timeseries_df.pickle', 'wb') as f:
+            pickle.dump(timeseries_df, f, protocol=pickle.HIGHEST_PROTOCOL)
+
+
+        if len(needs_adjustment) > 0:
+            timeseries_df = self.adjust_to_quarterly(needs_adjustment, tag_map, timeseries_df,timeseries_logger,overall_logger)
 
         return timeseries_df
 
 
 
 
-    def clean_up_timeseries_df(self,statement_dict,list_statement_dates,timeseries_df,timeseries_logger):
-        latest_filing_mask = timeseries_df.index.isin(statement_dict[list_statement_dates[0]].index)
+    def clean_up_timeseries_df(self,latest_statement_df,timeseries_df,timeseries_logger):
+
+        #latest_statement_df =  statement_dict[list_statement_dates[0]]
+        #latest_statement_df.index = latest_statement_df.index.get_level_values(0)  
+
+        latest_filing_mask = timeseries_df.index.isin(latest_statement_df.index.get_level_values(0))
 
 
         #reordering according to the latest statement
         timeseries_df_tmp = timeseries_df.loc[latest_filing_mask,:]
-        timeseries_df_tmp = timeseries_df_tmp.reindex(statement_dict[list_statement_dates[0]].index)
+        timeseries_df_tmp = timeseries_df_tmp.reindex(latest_statement_df.index.get_level_values(0))
         #moving rows that aren't in the latest statemeent to the bottom
         timeseries_df_tmp = timeseries_df_tmp.append(timeseries_df.loc[~latest_filing_mask,:])
 
@@ -318,7 +347,7 @@ class CompanyStatementTimeseries:
 
 
 
-        timeseries_df = timeseries_df_tmp
+        timeseries_df = timeseries_df_tmp.drop_duplicates()
 
         return timeseries_df
 
@@ -410,17 +439,21 @@ class CompanyStatementTimeseries:
 
         for ds in list_statement_dates:
 
-            label_list = [l for l in statement_dict[ds].columns if 'label' in l .lower()]
+            tmp_df = statement_dict[ds]   
+            tmp_df.index = tmp_df.index.droplevel(1) #remove period_type
+            label_list = [l for l in tmp_df.columns if 'label' in l .lower()]
+            tmp_df = tmp_df[label_list ]
+            tmp_df = tmp_df.drop_duplicates()
 
             for label in label_list:
                 if label not in timeseries_df.columns:
                     timeseries_df[label] = None
 
             if ds ==list_statement_dates[0]:
-                timeseries_df.loc[ statement_dict[ds][statement_dict[ds].index.isin(timeseries_df.index)].index,label_list] = statement_dict[ds].loc[:,label_list]
+                timeseries_df.loc[ tmp_df[tmp_df.index.isin(timeseries_df.index)].index,label_list] = tmp_df.loc[:,label_list]
             else:
-                labels_to_find_index = statement_dict[ds][statement_dict[ds].index.isin(labels_to_find_list)].index
-                timeseries_df.loc[labels_to_find_index,label_list] = statement_dict[ds].loc[labels_to_find_index,label_list] 
+                labels_to_find_index = tmp_df[tmp_df.index.isin(labels_to_find_list)].index
+                timeseries_df.loc[labels_to_find_index,label_list] = tmp_df.loc[labels_to_find_index,label_list] 
 
             label_list = [l for l in timeseries_df.columns if 'label' in l .lower()] 
 

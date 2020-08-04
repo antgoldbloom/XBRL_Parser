@@ -92,13 +92,7 @@ overall_logger = setup_logging(f"{data_path}/logs/__OVERALL__/",f'{log_time}.log
 for ticker in ['AAPL']:
     overall_logger.info(f'______{ticker}______')
     start_time = time()
-    #company_json = CompanyStatementsJSON(ticker,data_path,overall_logger,update_only)
-    #company_csv = CompanyStatementCSV(ticker,data_path,overall_logger,update_only)
-    #xbrl_to_statement(ticker,data_path,overall_logger,update_only)
-    company_timeseries = CompanyStatementTimeseries(ticker,data_path,overall_logger,update_only,'1006007 - Statement - CONDENSED CONSOLIDATED STATEMENTS OF CASH FLOWS Unaudited.csv')
-    #company_timeseries = CompanyStatementTimeseries(ticker,data_path,overall_logger,update_only)
-    #company_standard = CompanyStatementStandardize(ticker,data_path,overall_logger)
-    #company_stockrow = CompanyStockrowReconcilation(ticker,data_path,overall_logger)
+    xbrl_to_statement(ticker,data_path,overall_logger,update_only)
     overall_logger.info(f"______{time()-start_time}______") 
 
 
