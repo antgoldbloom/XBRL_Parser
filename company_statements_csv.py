@@ -163,20 +163,45 @@ class CompanyStatementCSV:
         return stock_list_dict                    
 
 
+    def reorder_list(self,stock_list_dict):
+        reorder_list = []
+
+        for metric in stock_list_dict:
+            order_tmp = []
+            for i in range(len(stock_list_dict[metric])-2,-1,-1):
+                order_tmp.append(int(float(stock_list_dict[metric][i]['prearc_order']))) 
+            reorder_list.append(order_tmp)
+
+        reorder_list = (sorted(reorder_list,reverse=False))
+
+        ordered_stock_list_dict = {}
+        for order_list in reorder_list:
+            if len(order_list) > 0:
+                prearc_order = order_list[len(order_list)-1] 
+                for xbrl_tag in stock_list_dict: 
+                    if int(float(stock_list_dict[xbrl_tag][0]['prearc_order'])) == prearc_order:
+                        ordered_stock_list_dict[xbrl_tag] = stock_list_dict[xbrl_tag] 
+
+        return ordered_stock_list_dict 
+
+
+
     def stock_list_dict_to_dataframe(self,stock_dict_with_ded,document_end_date,document_type,statement,csv_logger):
 
         stock_list_dict = self.create_stock_dict_list(stock_dict_with_ded,statement,csv_logger) 
+        if statement == 'statementincomestatements':
+            stock_list_dict = self.reorder_list(stock_list_dict)
 
         metric_list = []
         for row in stock_list_dict:
             metric_list.append(row)
 
         
+
         df_statement = pd.DataFrame(index=pd.MultiIndex.from_product([metric_list, self.freq_list], names=['xbrl_tag', 'period_type']))  
 
 
         for metric in stock_list_dict:
-
             if 'labels' in stock_list_dict[metric][0]:
                 label_keys =  stock_list_dict[metric][0]['labels'].keys()
                 for label_key in label_keys:
@@ -225,21 +250,4 @@ class CompanyStatementCSV:
 
 
 
-
-##file_list = glob.glob(f"{json_path}/*.json") 
-#file_list = [f"{json_path}ZG.json"]
-
-
-
-    ####THE LIST IS CURRENT CORRECT ORDERED BY DEFAULT. CASN USE THIS IF THAT CHANGES
-    #reorder_list = []
-    #LEARN defaultdict in Python. That looks more flexible 
-    #for metric in stock_list_dict:
-    #    order_tmp = []
-    #    for i in range(len(stock_list_dict[metric])-2,-1,-1):
-    #        order_tmp.append(int(stock_list_dict[metric][i]['prearc_order'])) 
-    #    reorder_list.append(order_tmp)
-
-    #TO DO MAP REORDERING
-    #print(sorted(reorder_list,reverse=False))
 

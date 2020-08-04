@@ -238,12 +238,13 @@ class CompanyStatementTimeseries:
 
         for matched_xbrl_tag in tag_map_needs_adjustment_intersection:
             for xbrl_tag in tag_map[matched_xbrl_tag]:
-                if xbrl_tag not in needs_adjustment:
+                if (xbrl_tag not in needs_adjustment): 
                    needs_adjustment[xbrl_tag] =  needs_adjustment[matched_xbrl_tag]
                 else:
+                    ##UP TO NEEDS ADJUSTMENT CAN CHANGE. SO LOOKs LIKE IT's CHANGING, which is causiing an issue with the statement. Is that OK
                     needs_adjustment[xbrl_tag].update(needs_adjustment[matched_xbrl_tag])
-                del(needs_adjustment[matched_xbrl_tag])
                 needs_adjustment[xbrl_tag] = OrderedDict(sorted(needs_adjustment[xbrl_tag].items(),reverse=True))
+            del(needs_adjustment[matched_xbrl_tag])
         return needs_adjustment
 
     def period_type_to_months(self,period_type):
@@ -270,16 +271,21 @@ class CompanyStatementTimeseries:
                 i = 1
                 while (months_in_metric > 3):
 
-                    if timeseries_df.columns[month_index+i] in needs_adjustment[xbrl_tag]:
-                        months_in_metric = months_in_metric - self.period_type_to_months(needs_adjustment[xbrl_tag][timeseries_df.columns[month_index+i]])
-                    else:
-                        months_in_metric = months_in_metric - 3
+                    if month_index +i < len(timeseries_df.columns):
+                        if timeseries_df.columns[month_index+i] in needs_adjustment[xbrl_tag]:
+                            months_in_metric = months_in_metric - self.period_type_to_months(needs_adjustment[xbrl_tag][timeseries_df.columns[month_index+i]])
+                        else:
+                            months_in_metric = months_in_metric - 3
 
-                    if months_in_metric >= 3:
-                        timeseries_df.iloc[tag_index,month_index] = timeseries_df.iloc[tag_index,month_index] - timeseries_df.iloc[tag_index,month_index+i]
-                    else:
-                        timeseries_logger.error(f"Error adjusting period type for {xbrl_tag} on {date_col}") 
-                    i += 1
+                        if months_in_metric >= 3:
+                            timeseries_df.iloc[tag_index,month_index] = timeseries_df.iloc[tag_index,month_index] - timeseries_df.iloc[tag_index,month_index+i]
+                        else:
+                            timeseries_logger.error(f"Error adjusting period type for {xbrl_tag} on {date_col}") 
+                        i += 1
+                    else: #not enough history in time series to adjust
+                        timeseries_df.iloc[tag_index,month_index] = None
+                        break
+
 
         return timeseries_df
 

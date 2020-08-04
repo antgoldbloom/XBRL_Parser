@@ -384,11 +384,12 @@ class CompanyStatementsJSON:
 
         for lab in parsed_xml_lab:
             for metric in lab_dict:
-                xlink_to = lab_dict[metric]['xlink:to']
-                if xlink_to == lab.get(f"{{{LABEL_NAMESPACE['xlink']}}}label"): 
-                    label_role = lab.get(f"{{{LABEL_NAMESPACE['xlink']}}}role")
-                    label_role = re.search('/role/[A-Za-z]+',label_role).group(0)[6:] 
-                    lab_dict[metric]['labels'][label_role] = lab.text
+                if 'xlink:to' in lab_dict[metric]:
+                    xlink_to = lab_dict[metric]['xlink:to']
+                    if xlink_to == lab.get(f"{{{LABEL_NAMESPACE['xlink']}}}label"): 
+                        label_role = lab.get(f"{{{LABEL_NAMESPACE['xlink']}}}role")
+                        label_role = re.search('/role/[A-Za-z]+',label_role).group(0)[6:] 
+                        lab_dict[metric]['labels'][label_role] = lab.text
 
 
         return lab_dict

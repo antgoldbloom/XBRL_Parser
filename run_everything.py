@@ -39,7 +39,7 @@ def fetch_ticker_list(list_name='sample_list'):
         
 
     elif list_name == 'sample_list':
-        ticker_list = ['GOOG','MSFT','AMZN','NVDA','ORCL','INTC','CRM','TSLA','FB','AAPL','NFLX','ZM','ZEN','ADBE','UBER','LYFT','ZG','WORK','OKTA','BYND']
+        ticker_list = ['MSFT','AMZN','NVDA','ORCL','INTC','CRM','TSLA','FB','AAPL','NFLX','ZM','ZEN','ADBE','UBER','LYFT','ZG','WORK','OKTA','BYND','GOOG']
         #ticker_list = ['AAPL','AXP','BA','CAT','CSCO','CVX','DD','DIS','GE','GS','HD','IBM','INTC','JNJ','JPM','KO','MCD','MMM','MRK','MSFT','NKE','PFE','PG','TRV','UNH','UTX','V','VZ']
         #ticker_list = ['WMT','XOM']
     elif list_name == 'debug':
@@ -89,11 +89,10 @@ log_time = datetime.now().strftime('%Y_%m_%d__%H_%M_%S')
 
 overall_logger = setup_logging(f"{data_path}/logs/__OVERALL__/",f'{log_time}.log',f'error_{log_time}')
 
-for ticker in ticker_list:
+for ticker in ticker_list: 
     overall_logger.info(f'______{ticker}______')
     start_time = time()
-    #xbrl_to_statement(ticker,data_path,overall_logger,update_only)
-    company_timeseries = CompanyStatementTimeseries(ticker,data_path,overall_logger,update_only)
+    xbrl_to_statement(ticker,data_path,overall_logger,update_only)
     overall_logger.info(f"______{time()-start_time}______") 
 
 
