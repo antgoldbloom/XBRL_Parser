@@ -49,7 +49,7 @@ class CompanyStatementTimeseries:
             for dirname, _, filenames in os.walk(f"{self.csv_path}/{ self.latest_statement_date_type}"):
                 for statement in filenames:
                     timeseries_logger.info(f"__{statement}__")
-                    self.create_statement_time_series(statement,timeseries_logger)
+                    self.create_statement_time_series(statement,timeseries_logger,overall_logger)
 
             self.statement_count = 0
             for dirname, _, filenames in os.walk(f"{self.csv_path}/{self.latest_statement_date_type}"):

@@ -83,16 +83,17 @@ def xbrl_to_statement(ticker,data_path,overall_logger,update_only=True):
 
 data_path = '../data/'
 
-ticker_list = fetch_ticker_list('sp500')
+ticker_list = fetch_ticker_list('sample_list')
 update_only = False 
 log_time = datetime.now().strftime('%Y_%m_%d__%H_%M_%S')
 
 overall_logger = setup_logging(f"{data_path}/logs/__OVERALL__/",f'{log_time}.log',f'error_{log_time}')
 
-for ticker in ['AAPL']:
+for ticker in ticker_list:
     overall_logger.info(f'______{ticker}______')
     start_time = time()
-    xbrl_to_statement(ticker,data_path,overall_logger,update_only)
+    #xbrl_to_statement(ticker,data_path,overall_logger,update_only)
+    company_timeseries = CompanyStatementTimeseries(ticker,data_path,overall_logger,update_only)
     overall_logger.info(f"______{time()-start_time}______") 
 
 
