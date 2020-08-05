@@ -29,36 +29,44 @@ class CompanyStockrowReconcilation:
     def __init__(self,ticker,data_path,overall_logger):
 
         self.ticker = ticker 
-        #self.log_path = f"{data_path}logs/{ticker}/{log_time_folder}/"
+        self.log_path = f"{data_path}logs/{ticker}/{overall_logger.name[6:]}/"
         self.timeseries_path = f"{data_path}timeseries/"
         self.stockrow_path = f"{data_path}stockrow/{ticker}"
 
 
-        self.download_stock_row_statements(ticker,data_path,overall_logger)
+        reconcile_logger = setup_logging(self.log_path,'.log',f'reconcile_{ticker}')
+        reconcile_logger.info(f'_____{ticker}_TIMESERIES_STANDARDIZED_____')
+
+        self.download_stock_row_statements(ticker,data_path,overall_logger,reconcile_logger)
 
         for statement in ['Income Statement','Balance Sheet', 'Cash Flow']:
             overall_logger.info(f'___{statement}___')
+            reconcile_logger.info(f'___{statement}___')
 
             df, df_sr = self.load_statement(data_path,ticker,statement)
             missing_labels, missing_labels_in_stock_row = self.missing_rows(data_path,df,df_sr,statement)
             if len(missing_labels) > 0:
                 overall_logger.warning(f"\nmissing labels: {', '.join(missing_labels)}")
                 overall_logger.info(f"missing labels in stockrow: {', '.join(missing_labels_in_stock_row)}\n")
+                reconcile_logger.warning(f"\nmissing labels: {', '.join(missing_labels)}")
+                reconcile_logger.info(f"missing labels in stockrow: {', '.join(missing_labels_in_stock_row)}\n")
 
 
             missing_dates = self.missing_columns(df,df_sr)
             if len(missing_dates) > 0:
                 overall_logger.warning(f"missing dates: {', '.join(missing_dates)}\n")
+                reconcile_logger.warning(f"missing dates: {', '.join(missing_dates)}\n")
 
             label_discrepancy_dict = self.label_discrepancies(df,df_sr)
 
             for label in label_discrepancy_dict:
                 if len(label_discrepancy_dict[label]) > 0:
                     overall_logger.warning(label_discrepancy_dict[label].T)
+                    reconcile_logger.warning(label_discrepancy_dict[label].T)
 
 
 
-    def download_stock_row_statements(self,ticker,data_path,overall_logger):
+    def download_stock_row_statements(self,ticker,data_path,overall_logger,reconcile_logger):
         Path(self.stockrow_path).mkdir(parents=True, exist_ok=True)
 
 
@@ -71,10 +79,12 @@ class CompanyStockrowReconcilation:
                     r = requests.get(url, allow_redirects=True)
                 except: 
                     overall_logger.error(f'Failed to download {statement} for {ticker}')
+                    reconcile_logger.error(f'Failed to download {statement} for {ticker}')
 
 
                 if (b'The page you were looking for doesn\'t exist (404)' in r.content):
                     overall_logger.error(f"{statement}.xlsx' not found") 
+                    reconcile_logger.error(f"{statement}.xlsx' not found") 
                 else:
                     open(f'{self.stockrow_path}/{statement}.xlsx', 'wb').write(r.content)
 

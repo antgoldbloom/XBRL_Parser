@@ -51,6 +51,7 @@ class CompanyStatementTimeseries:
                     timeseries_logger.info(f"__{statement}__")
                     self.create_statement_time_series(statement,timeseries_logger,overall_logger)
 
+
             self.statement_count = 0
             for dirname, _, filenames in os.walk(f"{self.csv_path}/{self.latest_statement_date_type}"):
                 for filename in filenames:
@@ -398,15 +399,15 @@ class CompanyStatementTimeseries:
     def statement_file_path_and_name(self,statement,timeseries_logger=None):
         dash_list = [m.start() for m in re.finditer('-', statement)]
         if len(dash_list) >= 2: 
-            filetype = statement[dash_list[0]+2:dash_list[1]-1]
+            statement_folder = f'Raw {statement[dash_list[0]+2:dash_list[1]-1]}s'
             statement_name = statement[dash_list[1]+2:]
         else:
             statement_name = statement 
-            filetype = 'Other'
+            statement_folder = 'Other'
             if timeseries_logger is not None:
                 timeseries_logger(f'Statement type could not be infered for {statement}')
 
-        return [f"{self.timeseries_path}{self.ticker}/{filetype}/",statement_name]
+        return [f"{self.timeseries_path}{self.ticker}/{statement_folder}/",statement_name]
 
     def save_file(self,statement,timeseries_df,timeseries_logger):
 

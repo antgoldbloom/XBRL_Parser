@@ -32,8 +32,8 @@ class CompanyStatementStandardize:
         #initialize key variables
         self.ticker = ticker 
         self.log_path = f"{data_path}logs/{ticker}/{overall_logger.name[6:]}/"
-        self.timeseries_statement_path = f"{data_path}timeseries/{ticker}/Statement/"
-        self.canonical_timeseries_statement_path = f"{data_path}timeseries/{ticker}/Canonical Statement/"
+        self.timeseries_statement_path = f"{data_path}timeseries/{ticker}/Raw Statements/"
+        self.canonical_timeseries_statement_path = f"{data_path}timeseries/{ticker}/Clean Statements/"
         self.mapping_path = f"{data_path}mappings/"
 
         standardized_logger = setup_logging(self.log_path,'.log',f'standardized_{ticker}')
@@ -48,7 +48,7 @@ class CompanyStatementStandardize:
 
         statement_dict = {}
         for canonical_statement in ['Income Statement','Cash Flow','Balance Sheet']:
-            statement_dict[canonical_statement] = self.identify_statement(canonical_statement,overall_logger) 
+            statement_dict[canonical_statement] = self.identify_statement(canonical_statement,overall_logger,standardized_logger) 
 
             df_timeseries = pd.read_csv(f'{self.timeseries_statement_path}{statement_dict[canonical_statement]}',index_col=[0,1]) 
             df_timeseries = self.add_standard_label(df_timeseries,canonical_statement)
@@ -123,7 +123,7 @@ class CompanyStatementStandardize:
             return False
 
 
-    def identify_statement(self,canonical_statement,overall_logger):
+    def identify_statement(self,canonical_statement,overall_logger,standardized_logger):
 
         tag_list = self.flatten([self.mapping_dict[canonical_statement][label_list] for label_list in self.mapping_dict[canonical_statement]])
 
@@ -138,6 +138,7 @@ class CompanyStatementStandardize:
                     max_overlap = match_count
 
         overall_logger.info(f"{canonical_statement} matched with {matched_statement} ({max_overlap} matches)")
+        standardized_logger.info(f"{canonical_statement} matched with {matched_statement} ({max_overlap} matches)")
 
         return matched_statement
 
