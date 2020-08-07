@@ -1,0 +1,290 @@
+{
+    "Income Statement": {
+        "Revenue": [
+            "us-gaap_revenues",
+            "us-gaap_revenuefromcontractwithcustomerexcludingassessedtax",
+            "us-gaap_revenuefromcontractwithcustomerincludingassessedtax"
+        ],
+        "Cost of revenue": [
+            "us-gaap_costofgoodsandservicessold",
+            "us-gaap_costofrevenue"
+        ],
+        "Gross income": [
+            "us-gaap_grossprofit"
+        ],
+        "R&D expenses": [
+            "us-gaap_researchanddevelopmentexpense",
+            "us-gaap_researchanddevelopmentexpenseexcludingacquiredinprocesscost",
+            "us-gaap_explorationexpense",
+            "us-gaap_researchanddevelopmentexpensesoftwareexcludingacquiredinprocesscost"
+        ],
+        "SG&A expenses": [
+            "us-gaap_sellinggeneralandadministrativeexpense",
+            "us-gaap_generalandadministrativeexpense"
+        ],
+        "Income before interest and tax": [
+            "us-gaap_operatingincomeloss"
+        ],
+        "Interest expenses": [
+            "us-gaap_interestexpense",
+            "us-gaap_interestanddebtexpense"
+        ],
+        "Income before tax": [
+            "us-gaap_incomelossfromcontinuingoperationsbeforeincometaxesextraordinaryitemsnoncontrollinginterest",
+            "us-gaap_incomelossfromcontinuingoperationsbeforeincometaxesminorityinterestandincomelossfromequitymethodinvestments"
+        ],
+        "Income tax provision": [
+            "us-gaap_incometaxexpensebenefit"
+        ],
+        "Net income": [
+            "us-gaap_profitloss",
+            "us-gaap_netincomeloss"
+        ],
+        "Net income common": [
+            "us-gaap_netincomelossavailabletocommonstockholdersbasic"
+        ],
+        "Net income from non-controlling interests": [
+            "us-gaap_netincomelossattributabletononcontrollinginterest"
+        ],
+        "Income from discontinued operations": [
+            "us-gaap_incomelossfromdiscontinuedoperationsnetoftaxattributabletoreportingentity"
+        ],
+        "Income from continuous operations": [
+            "us-gaap_incomelossfromcontinuingoperationsincludingportionattributabletononcontrollinginterest",
+            "us-gaap_incomelossfromcontinuingoperations"
+        ],
+        "Non-operating income": [
+            "us-gaap_nonoperatingincomeexpense"
+        ],
+        "Share of subsidiary income": [
+            "us-gaap_incomelossfromequitymethodinvestments"
+        ],
+        "EPS (basic)": [
+            "us-gaap_earningspersharebasic"
+        ],
+        "EPS (diluted)": [
+            "us-gaap_earningspersharediluted"
+        ],
+        "Shares (diluted, weighted average)": [
+            "us-gaap_weightedaveragenumberofdilutedsharesoutstanding"
+        ],
+        "Shares (basic, weighted average)": [
+            "us-gaap_weightedaveragenumberofsharesoutstandingbasic"
+        ],
+        "EPS (basic, from continuous ops)": [
+            "us-gaap_incomelossfromcontinuingoperationsperbasicshare"
+        ],
+        "EPS (diluted, from continous ops)": [
+            "us-gaap_incomelossfromcontinuingoperationsperdilutedshare"
+        ],
+        "Dividends (preferred)": [
+            "us-gaap_preferredstockdividendsincomestatementimpact"
+        ]
+    },
+    "Balance Sheet": {
+        "Receivables": [
+            "us-gaap_accountsreceivablenetcurrent",
+            "us-gaap_receivablesnetcurrent",
+            "us-gaap_accountsnotesandloansreceivablenetcurrent",
+            "us-gaap_premiumsandotherreceivablesnet",
+            "us-gaap_accountsreceivablenet"
+        ],
+        "Inventory": [
+            "us-gaap_inventorynet"
+        ],
+        "Total current assets": [
+            "us-gaap_assetscurrent"
+        ],
+        "Property, plant, equpment (net)": [
+            "us-gaap_propertyplantandequipmentnet"
+        ],
+        "Long-term investments": [
+            "us-gaap_longterminvestments",
+            "us-gaap_investmentsinaffiliatessubsidiariesassociatesandjointventures",
+            "us-gaap_equitymethodinvestments",
+            "us-gaap_marketablesecuritiesnoncurrent"
+        ],
+        "Total assets": [
+            "us-gaap_liabilitiesandstockholdersequity",
+            "us-gaap_assets"
+        ],
+        "Notes payable": [
+            "us-gaap_notespayablecurrent"
+        ],
+        "Current part of debt": [
+            "us-gaap_longtermdebtcurrent",
+            "us-gaap_debtcurrent",
+            "us-gaap_shorttermborrowings",
+            "us-gaap_operatingleaseliabilitycurrent"
+        ],
+        "Accounts payable": [
+            "us-gaap_accountspayablecurrent",
+            "us-gaap_accountspayableandaccruedliabilitiescurrent",
+            "us-gaap_accountspayableandaccruedliabilitiescurrentandnoncurrent",
+            "us-gaap_deposits"
+        ],
+        "Dividends payable": [
+            "us-gaap_dividendspayablecurrent"
+        ],
+        "Accrued expenses": [
+            "us-gaap_accruedliabilitiescurrent",
+            "us-gaap_employeerelatedliabilitiescurrent",
+            "us-gaap_interestpayablecurrent",
+            "us-gaap_accruedliabilitiesandotherliabilities"
+        ],
+        "Other current liabilities": [
+            "us-gaap_otherliabilitiescurrent"],
+        "Current part of taxes to pay": [
+            "us-gaap_accruedincometaxescurrent",
+            "us-gaap_taxespayablecurrent"
+        ],
+        "Total current liabilities": [
+            "us-gaap_liabilitiescurrent"
+        ],
+        "Long term debt (total)": [
+            "us-gaap_longtermdebtnoncurrent",
+            "us-gaap_longtermdebtandcapitalleaseobligations",
+            "us-gaap_longtermdebt",
+            "us-gaap_operatingleaseliabilitynoncurrent",
+            "us-gaap_unsecuredlongtermdebt"
+        ],
+        "Long term tax liability (deferred)": [
+            "us-gaap_deferredincometaxliabilitiesnet",
+            "us-gaap_deferredtaxliabilitiesnoncurrent",
+            "us-gaap_deferredtaxandotherliabilitiesnoncurrent",
+            "us-gaap_deferredincometaxesandotherliabilitiesnoncurrent"
+        ],
+        "Non-current liabilities (other)": [
+            "us-gaap_otherliabilitiesnoncurrent"
+        ],
+        "Additional paid in capital": [
+            "us-gaap_additionalpaidincapitalcommonstock",
+            "us-gaap_additionalpaidincapital"
+        ],
+        "Common stock (net)": [
+            "us-gaap_commonstockvalue",
+            "us-gaap_commonstocksincludingadditionalpaidincapital",
+            "us-gaap_commonstockvalueoutstanding"
+        ],
+        "Retained earnings": [
+            "us-gaap_retainedearningsaccumulateddeficit"
+        ],
+        "Treasury stock": [
+            "us-gaap_treasurystockvalue",
+            "us-gaap_treasurystockcommonvalue"
+        ],
+        "Shareholders equity (total)": [
+            "us-gaap_stockholdersequityincludingportionattributabletononcontrollinginterest",
+            "us-gaap_stockholdersequity"
+        ],
+        "Cash and short term investments": [
+            "us-gaap_cashandcashequivalentsatcarryingvalue",
+            "us-gaap_cashcashequivalentsandshortterminvestments",
+            "us-gaap_cashcashequivalentsrestrictedcashandrestrictedcashequivalents"
+        ],
+        "Other current assets": [
+            "us-gaap_otherassetscurrent"
+        ],
+        "Current revenue (deferred)": [
+            "us-gaap_contractwithcustomerliabilitycurrent",
+            "us-gaap_deferredrevenuecurrent"
+        ],
+        "Non-current revenue (deferred)": [
+            "us-gaap_contractwithcustomerliabilitynoncurrent",
+            "us-gaap_deferredrevenuenoncurrent"
+        ],
+        "Total liabilities": [
+            "us-gaap_liabilities"
+        ],
+        "Long-term assets (other)": [
+            "us-gaap_otherassetsnoncurrent",
+            "us-gaap_otherassets"
+        ],
+        "Preferred stock (total)": [
+            "us-gaap_preferredstockvalue"
+        ],
+        "Long term assets (tax deferred)": [
+            "us-gaap_deferredincometaxassetsnet",
+            "us-gaap_deferredpolicyacquisitioncosts",
+            "us-gaap_deferredtaxassetsnetnoncurrent"
+        ],
+        "Minority interests": [
+            "us-gaap_redeemablenoncontrollinginterestequitycarryingamount",
+            "us-gaap_temporaryequitycarryingamountincludingportionattributabletononcontrollinginterests"
+        ],
+        "Goodwill and intangible assets (total)": [
+            "us-gaap_goodwill",
+            "us-gaap_intangibleassetsnetincludinggoodwill"
+        ],
+        "Shares (common)": [
+            "us-gaap_commonstocksharesoutstanding"
+        ],
+        "Total non-current liabilities": [
+            "us-gaap_liabilitiesnoncurrent"
+        ],
+        "Pension and post-retirement liabilities": [
+            "us-gaap_pensionandotherpostretirementdefinedbenefitplansliabilitiesnoncurrent"
+        ],
+        "Total non-current assets": [
+            "us-gaap_assetsnoncurrent"
+        ]
+    },
+    "Cash Flow": {
+        "Net income": [
+            "us-gaap_profitloss",
+            "us-gaap_netincomeloss"
+        ],
+        "Depreciation & amortization": [
+            "us-gaap_depreciationdepletionandamortization",
+            "us-gaap_depreciationandamortization",
+            "us-gaap_depreciationamortizationandaccretionnet"
+        ],
+        "Operating cash flow": [
+            "us-gaap_netcashprovidedbyusedinoperatingactivities"
+        ],
+        "Investing cash flow": [
+            "us-gaap_netcashprovidedbyusedininvestingactivities"
+        ],
+        "Financing cash flow": [
+            "us-gaap_netcashprovidedbyusedinfinancingactivities"
+        ],
+        "Exchange rate adjustment": [
+            "us-gaap_effectofexchangerateoncashcashequivalentsrestrictedcashandrestrictedcashequivalents",
+            "us-gaap_effectofexchangerateoncashandcashequivalents",
+            "us-gaap_effectofexchangerateoncashcashequivalentsrestrictedcashandrestrictedcashequivalentsincludingdisposalgroupanddiscontinuedoperations"
+        ],
+        "Change in cash": [
+            "us-gaap_cashcashequivalentsrestrictedcashandrestrictedcashequivalentsperiodincreasedecreaseincludingexchangerateeffect",
+            "us-gaap_cashcashequivalentsrestrictedcashandrestrictedcashequivalentsperiodincreasedecreaseexcludingexchangerateeffect",
+            "us-gaap_cashandcashequivalentsperiodincreasedecrease"
+        ],
+        "Stock based compensation": [
+            "us-gaap_sharebasedcompensation",
+            "us-gaap_adjustmentstoadditionalpaidincapitalsharebasedcompensationrequisiteserviceperiodrecognitionvalue",
+            "us-gaap_allocatedsharebasedcompensationexpense"
+        ],
+        "Accounts payable change": [
+            "us-gaap_increasedecreaseinaccountspayable",
+            "us-gaap_increasedecreaseinaccountspayabletrade"
+        ],
+        "Income tax paid": [
+            "us-gaap_increasedecreaseinaccruedincometaxespayable",
+            "us-gaap_increasedecreaseinincometaxespayablenetofincometaxesreceivable",
+            "us-gaap_increasedecreaseinincometaxes",
+            "us-gaap_increasedecreaseinaccruedtaxespayable"
+        ],
+        "Change in payables and accrued liability": [
+            "us-gaap_increasedecreaseinaccountspayableandaccruedliabilities",
+            "us-gaap_increasedecreaseinaccruedliabilities"
+        ],
+        "Other financial activities": [
+            "us-gaap_proceedsfrompaymentsforotherfinancingactivities"
+        ],
+        "Other operating activities": [
+            "us-gaap_otheroperatingactivitiescashflowstatement"
+        ],
+        "Issuance/purchase of shares": [
+            "us-gaap_proceedsfromissuanceofcommonstock"
+        ]
+    }
+}

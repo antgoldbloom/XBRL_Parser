@@ -94,7 +94,7 @@ class CompanyStockrowReconcilation:
         return df      
 
     def load_statement(self,data_path,ticker,statement):
-        df = pd.read_csv(f"{data_path}timeseries/{ticker}/Canonical Statement/{statement}.csv",index_col=[2])  
+        df = pd.read_csv(f"{data_path}timeseries/{ticker}/Cleaned Statements/{statement}.csv",index_col=[2])  
         df = df.drop(['filing_label','xbrl_tag'],axis=1)
         df.columns = self.list_of_rounded_months(df.columns)
         df.columns = pd.to_datetime(df.columns)

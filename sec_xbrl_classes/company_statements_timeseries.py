@@ -16,8 +16,6 @@ from utils import setup_logging
 import string
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.feature_extraction.text import CountVectorizer
-from nltk.corpus import stopwords
-stopwords = stopwords.words('english')
 
 class CompanyStatementTimeseries:
 
@@ -151,6 +149,8 @@ class CompanyStatementTimeseries:
         return statement_dict
 
     def clean_string(self,text):
+        stopwords_file = open("mapping/english", "r")
+        stopwords = stopwords_file.readlines()
 
         text = text[:-4] 
         text = ''.join([word for word in text if word not in string.punctuation])
@@ -313,20 +313,6 @@ class CompanyStatementTimeseries:
         #timeseries_df.columns = pd.DatetimeIndex(timeseries_df.columns) 
         timeseries_df = timeseries_df.sort_index(axis=1,ascending=False)
 
-        import pickle
-        with open('../data/debug/needs_adjustment.pickle', 'wb') as f:
-            pickle.dump(needs_adjustment, f, protocol=pickle.HIGHEST_PROTOCOL)
-            
-        with open('../data/debug/tag_map.pickle', 'wb') as f:
-            pickle.dump(tag_map, f, protocol=pickle.HIGHEST_PROTOCOL)
-
-        with open('../data/debug/statement_dict.pickle', 'wb') as f:
-            pickle.dump(statement_dict, f, protocol=pickle.HIGHEST_PROTOCOL)
-
-        with open('../data/debug/timeseries_df.pickle', 'wb') as f:
-            pickle.dump(timeseries_df, f, protocol=pickle.HIGHEST_PROTOCOL)
-
-
         if len(needs_adjustment) > 0:
             timeseries_df = self.adjust_to_quarterly(needs_adjustment, tag_map, timeseries_df,timeseries_logger,overall_logger)
 
@@ -351,8 +337,6 @@ class CompanyStatementTimeseries:
 
         #remove columns with all NA
         timeseries_df_tmp = timeseries_df_tmp.loc[~timeseries_df_tmp.isna().all(axis=1),:] 
-
-
 
         timeseries_df = timeseries_df_tmp.drop_duplicates()
 

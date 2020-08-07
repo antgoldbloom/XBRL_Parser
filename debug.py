@@ -1,43 +1,21 @@
+import sys
+sys.path.append('sec_xbrl_classes')
+
+import requests
+import csv
+from datetime import datetime
+from time import time
+import os 
+from utils import setup_logging 
+
+from execute_all_classes import xbrl_to_statement 
+
 from company_statements_xbrl import CompanyStatementsXBRL
 from company_statements_json import CompanyStatementsJSON
 from company_statements_csv import CompanyStatementCSV
 from company_statements_timeseries import CompanyStatementTimeseries
 from company_statements_standardize import CompanyStatementStandardize 
 from company_stockrow_reconcilation import CompanyStockrowReconcilation 
-
-
-from utils import setup_logging 
-
-from time import time
-from datetime import datetime
-import requests
-import csv
-import random
-
-from google.cloud import storage
-
-import os
-import sys
-
-def already_uploaded(bucket_name, data_path,ticker):
-
-    storage_client = storage.Client()
-    bucket = storage_client.bucket(bucket_name)
-
-    key_files = ['Income Statement.csv','Balance Sheet.csv','Cash Flow.csv']
-    key_folder = f'{ticker}/Clean Statements/'
-
-    key_files_exist = True
-    for file in key_files:    
-        stats = storage.Blob(bucket=bucket, name=f'{key_folder}{file}').exists(storage_client)
-
-        if stats == False:
-
-            key_files_exist = False
-            break
-
-    return key_files_exist
-
 
 
 def get_all_tickers(list_size=500):
@@ -70,51 +48,21 @@ def fetch_ticker_list(list_name='sample_list'):
     return ticker_list 
 
 
-def xbrl_to_statement(ticker,data_path,overall_logger,update_only=True):
-    try:
-        company_xbrl = CompanyStatementsXBRL(ticker,data_path,overall_logger,update_only)
-    except:
-        overall_logger.error('XBRL: {}. {}, line: {} in {}'.format(sys.exc_info()[0],sys.exc_info()[1],sys.exc_info()[2].tb_lineno,sys.exc_info()[2].tb_lineno))
-    else:
-        try:
-            company_json = CompanyStatementsJSON(ticker,data_path,overall_logger,update_only)
-        except:
-            overall_logger.error('JSON: {}. {}, line: {} in {}'.format(sys.exc_info()[0],sys.exc_info()[1],sys.exc_info()[2].tb_lineno,sys.exc_info()[2].tb_lineno))
-        else:
-            try:
-                company_csv = CompanyStatementCSV(ticker,data_path,overall_logger,update_only)
-            except:
-                overall_logger.error('CSV: {}. {}, line: {} in {}'.format(sys.exc_info()[0],sys.exc_info()[1],sys.exc_info()[2].tb_lineno,sys.exc_info()[2].tb_lineno))
-            else:
-                try:
-                    company_timeseries = CompanyStatementTimeseries(ticker,data_path,overall_logger,update_only)
-                except:
-                    overall_logger.error('TIMESERIES: {}. {}, line: {} in {}'.format(sys.exc_info()[0],sys.exc_info()[1],sys.exc_info()[2].tb_lineno,sys.exc_info()[2].tb_lineno))
-                else:
-                    try:
-                        company_standard = CompanyStatementStandardize(ticker,data_path,overall_logger)
-                    except:
-                        overall_logger.error('STANDARDIZED: {}. {}, line: {} in {}'.format(sys.exc_info()[0],sys.exc_info()[1],sys.exc_info()[2].tb_lineno,sys.exc_info()[2].tb_lineno))
-                    else:
-                        try:
-                            company_stockrow = CompanyStockrowReconcilation(ticker,data_path,overall_logger)
-                        except:
-                            overall_logger.error('RECONCILE: {}. {}, line: {} in {}'.format(sys.exc_info()[0],sys.exc_info()[1],sys.exc_info()[2].tb_lineno,sys.exc_info()[2].tb_lineno))
-
-  
-
-data_path = '../data/'
+data_path="/Users/goldbloom/Dropbox/Side Projects/Edgar/data/"
 
 ticker_list = fetch_ticker_list('all_tickers')
 update_only = False 
 log_time = datetime.now().strftime('%Y_%m_%d__%H_%M_%S')
+bucket_name = 'kaggle_sec_data'
+
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"]="/Users/goldbloom/Dropbox/Side Projects/Edgar/Key/kaggle-playground-0f760ec0ebcd.json"
+
 
 overall_logger = setup_logging(f"{data_path}/logs/__OVERALL__/",f'{log_time}.log',f'error_{log_time}')
 
-for ticker in ['AAPL']: 
+for ticker in ['GOOG']: 
     overall_logger.info(f'______{ticker}______')
     start_time = time()
-    #xbrl_to_statement(ticker,data_path,overall_logger,update_only)
     company_timeseries = CompanyStatementTimeseries(ticker,data_path,overall_logger,update_only)
     company_standard = CompanyStatementStandardize(ticker,data_path,overall_logger)
     overall_logger.info(f"______{time()-start_time}______") 

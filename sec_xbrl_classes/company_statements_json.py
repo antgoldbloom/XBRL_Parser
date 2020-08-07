@@ -41,6 +41,7 @@ class CompanyStatementsJSON:
         json_logger = setup_logging(self.log_path,'json.log',f'json_{ticker}')
         json_logger.info(f'_____{ticker}_JSON_____')
 
+        Path(self.json_path).mkdir(parents=True, exist_ok=True)
 
         json_path_and_file = os.path.join(self.json_path,f"{self.ticker}.json")
         if os.path.exists(json_path_and_file) and update_only:

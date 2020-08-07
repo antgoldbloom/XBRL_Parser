@@ -34,7 +34,6 @@ class CompanyStatementStandardize:
         self.log_path = f"{data_path}logs/{ticker}/{overall_logger.name[6:]}/"
         self.timeseries_statement_path = f"{data_path}timeseries/{ticker}/Raw Statements/"
         self.canonical_timeseries_statement_path = f"{data_path}timeseries/{ticker}/Clean Statements/"
-        self.mapping_path = f"{data_path}mappings/"
 
         standardized_logger = setup_logging(self.log_path,'.log',f'standardized_{ticker}')
         standardized_logger.info(f'_____{ticker}_TIMESERIES_STANDARDIZED_____')
@@ -43,7 +42,7 @@ class CompanyStatementStandardize:
         shutil.rmtree(f"{self.canonical_timeseries_statement_path}", ignore_errors=True, onerror=None)  #remove if exists <<
         Path(self.canonical_timeseries_statement_path).mkdir(parents=True, exist_ok=True)
 
-        with open(f"{self.mapping_path}/canonical_label_tag_mapping.json") as json_file:
+        with open(f"mapping/canonical_label_tag_mapping.json") as json_file:
             self.mapping_dict = json.load(json_file)
 
         statement_dict = {}
@@ -67,6 +66,7 @@ class CompanyStatementStandardize:
 
         df_timeseries = self.drop_extraneous_columns(df_timeseries,standardized_logger) 
         df_timeseries = self.add_missing_columns(df_timeseries,standardized_logger,overall_logger) 
+        df_timeseries = self.add_missing_rows(df_timeseries) 
 
 
         return df_timeseries 
@@ -113,6 +113,17 @@ class CompanyStatementStandardize:
             standardized_logger.error(f"Missing dates: {', '.join(missing_dates)}")
     
         return df_timeseries
+
+    def add_missing_rows(self,df_timeseries):
+
+        #for now, just adding gross income
+        if ('Gross income' not in df_timeseries.index.get_level_values(2)) and (df_timeseries.index.get_level_values(2).isin(['Revenue','Cost of revenue']).sum() == 2): 
+            df_gross_income = pd.DataFrame(df_timeseries[df_timeseries.index.get_level_values(2) == 'Revenue'].values - df_timeseries[df_timeseries.index.get_level_values(2) == 'Cost of revenue'].values,index=pd.MultiIndex.from_tuples(list(zip([None],[None],['Gross income'])),names=['filing_label','xbrl_tag','standard_label']),columns=df_timeseries.columns)
+            split_df_loc = df_timeseries.index.get_level_values(2).get_loc('Cost of revenue')+1
+            df_timeseries= pd.concat([df_timeseries.iloc[:split_df_loc], df_gross_income, df_timeseries.iloc[split_df_loc:]]) 
+
+        return df_timeseries
+
 
     def uses_regular_quarter_schedule(self,df_timeseries):
         quarter_list = df_timeseries.columns
