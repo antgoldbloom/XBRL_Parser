@@ -38,10 +38,11 @@ def upload_to_gcs(bucket_name,upload_directory,zip_file):
     storage_client = storage.Client()
     bucket = storage_client.bucket(bucket_name)
 
-    destination_blob_name = f'{upload_directory}/{zip_file}'
+    destination_blob_name = f"{upload_directory}/{zip_file}"
         
     blob = bucket.blob(destination_blob_name)
     blob.upload_from_filename(zip_file)
+    os.remove(zip_file)
     print('files uploaded to GCS')
   
 gcs_upload_folder = 'cloud functions' 

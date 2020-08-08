@@ -52,7 +52,7 @@ os.environ["GOOGLE_APPLICATION_CREDENTIALS"]="/Users/goldbloom/Dropbox/Side Proj
 
 overall_logger = setup_logging(f"{data_path}/logs/__OVERALL__/",f'{log_time}.log',f'error_{log_time}')
 
-for ticker in ['GOOG']: 
+for ticker in ['ZM']: 
     overall_logger.info(f'______{ticker}______')
     start_time = time()
     xbrl_to_statement(ticker,data_path,overall_logger,bucket_name,update_only)
