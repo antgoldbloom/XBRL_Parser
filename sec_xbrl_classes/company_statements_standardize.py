@@ -14,7 +14,7 @@ from collections import Counter
 import calendar
 from pathlib import Path
 
-from utils import setup_logging 
+from utils import setup_logging,upload_statement_files, download_statement_files, delete_statement_files
 
 import json
 
@@ -26,20 +26,22 @@ import sys
 
 class CompanyStatementStandardize: 
 
-    def __init__(self,ticker,data_path,overall_logger):
+    def __init__(self,ticker,data_path,overall_logger,bucket_name):
 
         overall_start_time = time()
         #initialize key variables
         self.ticker = ticker 
         self.log_path = f"{data_path}logs/{ticker}/{overall_logger.name[6:]}/"
-        self.timeseries_statement_path = f"{data_path}timeseries/{ticker}/Raw Statements/"
-        self.canonical_timeseries_statement_path = f"{data_path}timeseries/{ticker}/Clean Statements/"
+        self.data_root_path = f"{data_path}data/{ticker}/"
+        self.timeseries_root_path = f"{self.data_root_path}timeseries/"
+        self.timeseries_statement_path = f"{self.timeseries_root_path}Raw Statements/"
+        self.canonical_timeseries_statement_path = f"{self.timeseries_root_path}Clean Statements/"
 
-        standardized_logger = setup_logging(self.log_path,'.log',f'standardized_{ticker}')
+        standardized_logger = setup_logging(self.log_path,'standardize_timeseries.log',f'standardized_{ticker}')
         standardized_logger.info(f'_____{ticker}_TIMESERIES_STANDARDIZED_____')
 
 
-        shutil.rmtree(f"{self.canonical_timeseries_statement_path}", ignore_errors=True, onerror=None)  #remove if exists <<
+        shutil.rmtree(f"{self.canonical_timeseries_statement_path}", ignore_errors=True, onerror=None)  #remove if exists - this is fast so haven't bothered with adding update only functionality:w
         Path(self.canonical_timeseries_statement_path).mkdir(parents=True, exist_ok=True)
 
         with open(f"mapping/canonical_label_tag_mapping.json") as json_file:
@@ -54,6 +56,9 @@ class CompanyStatementStandardize:
             df_timeseries = self.clean_up_report(df_timeseries,standardized_logger,overall_logger)
             df_timeseries.to_csv(f'{self.canonical_timeseries_statement_path}{canonical_statement}.csv')
 
+
+        upload_statement_files(bucket_name, data_path,"timeseries",ticker,standardized_logger)
+        shutil.rmtree(f"{self.data_root_path}", ignore_errors=True, onerror=None)  #remove if exists 
 
         time_taken = f"Total time: {time() - overall_start_time}"
         standardized_logger.info(time_taken)

@@ -16,7 +16,7 @@ import shutil
 
 from time import time
 
-from utils import setup_logging 
+from utils import setup_logging,upload_statement_files, download_statement_files, delete_statement_files
 
 import os
 
@@ -27,12 +27,13 @@ import timeit
 
 class CompanyStatementsJSON:
 
-    def __init__(self,ticker,data_path,overall_logger,update_only=True,document_end_date=None):
+    def __init__(self,ticker,data_path,overall_logger,bucket_name,update_only=True,document_end_date=None):
         #document_end_date is for debugging
 
         self.ticker = ticker 
-        self.json_path = f'{data_path}json/'
-        self.xbrl_path = f'{data_path}xbrl/{ticker}/' 
+        self.data_root_path = f"{data_path}data/{ticker}/"
+        self.json_path = f'{self.data_root_path}json/'
+        self.xbrl_path = f'{self.data_root_path}xbrl/' 
         self.log_path = f'{data_path}logs/{ticker}/{overall_logger.name[6:]}/' 
 
         start_time = time()
@@ -41,7 +42,16 @@ class CompanyStatementsJSON:
         json_logger = setup_logging(self.log_path,'json.log',f'json_{ticker}')
         json_logger.info(f'_____{ticker}_JSON_____')
 
+        shutil.rmtree(f"{self.data_root_path}", ignore_errors=True, onerror=None)  #remove for the purposes of the local version
+
         Path(self.json_path).mkdir(parents=True, exist_ok=True)
+
+        if update_only:
+            download_statement_files(bucket_name, data_path, "json",ticker,json_logger)
+        else:
+            delete_statement_files(bucket_name, data_path, "json",ticker,json_logger)
+
+        download_statement_files(bucket_name, data_path, "xbrl",ticker,json_logger)
 
         json_path_and_file = os.path.join(self.json_path,f"{self.ticker}.json")
         if os.path.exists(json_path_and_file) and update_only:
@@ -57,6 +67,9 @@ class CompanyStatementsJSON:
 
         with open(f"{self.json_path}{ticker}.json", 'w') as stock_json:
             json.dump(stock_dict, stock_json)
+
+        upload_statement_files(bucket_name, data_path,"json",ticker,json_logger)
+        shutil.rmtree(f"{self.data_root_path}", ignore_errors=True, onerror=None)  #remove for the purposes of the local version
 
 
         self.date_count = len(stock_dict.keys()) 
@@ -540,6 +553,5 @@ class CompanyStatementsJSON:
             contents = f.read()
             soup = BeautifulSoup(contents, 'lxml')
         return soup
-
 
 

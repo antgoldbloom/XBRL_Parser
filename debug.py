@@ -6,7 +6,6 @@ import csv
 from datetime import datetime
 from time import time
 import os 
-from utils import setup_logging 
 
 from execute_all_classes import xbrl_to_statement 
 
@@ -17,6 +16,7 @@ from company_statements_timeseries import CompanyStatementTimeseries
 from company_statements_standardize import CompanyStatementStandardize 
 from company_stockrow_reconcilation import CompanyStockrowReconcilation 
 
+from utils import setup_logging,download_statement_files, delete_statement_files
 
 def get_all_tickers(list_size=500):
     resp = requests.get('https://www.sec.gov/include/ticker.txt')
@@ -48,7 +48,7 @@ def fetch_ticker_list(list_name='sample_list'):
     return ticker_list 
 
 
-data_path="/Users/goldbloom/Dropbox/Side Projects/Edgar/data/"
+data_path="/Users/goldbloom/Dropbox/Side Projects/Edgar/"
 
 ticker_list = fetch_ticker_list('all_tickers')
 update_only = False 
@@ -63,7 +63,8 @@ overall_logger = setup_logging(f"{data_path}/logs/__OVERALL__/",f'{log_time}.log
 for ticker in ['ZM']: 
     overall_logger.info(f'______{ticker}______')
     start_time = time()
-    company_stockrow = CompanyStockrowReconcilation(ticker,data_path,overall_logger)
+    #company_stockrow = CompanyStockrowReconcilation(ticker,data_path,overall_logger)
+    company_xbrl = CompanyStatementsXBRL(ticker,data_path,overall_logger,bucket_name,update_only)
     overall_logger.info(f"______{time()-start_time}______") 
 
 

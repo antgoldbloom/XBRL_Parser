@@ -29,7 +29,7 @@ from pathlib import Path
 import random
 import os
 
-from utils import setup_logging
+from utils import setup_logging,upload_statement_files, download_statement_files, delete_statement_files
 
 import shutil
 import zipfile
@@ -39,24 +39,36 @@ import logging
 import sys
 
 class CompanyStatementsXBRL:
-    def __init__(self,ticker,data_path,overall_logger,update_only=True):
+    def __init__(self,ticker,data_path,overall_logger,bucket_name,update_only=True):
 
         
         overall_start_time = time.time()
 
         self.ticker = ticker 
         self.log_path = f'{data_path}logs/{ticker}/{overall_logger.name[6:]}/'
-        self.xbrl_path = f'{data_path}xbrl/{ticker}/' 
+        self.data_root_path = f"{data_path}data/{ticker}/"
+        self.xbrl_path = f'{self.data_root_path}xbrl/' 
         self.download_count = 0 
 
-        if not update_only:
-            shutil.rmtree(f"{self.xbrl_path}", ignore_errors=True, onerror=None)  #remove if exists 
+        #
+        #shutil.rmtree(f"{self.xbrl_path}", ignore_errors=True, onerror=None)  #remove if exists 
 
         xbrl_logger = setup_logging(self.log_path,'download_xbrl.log',f'xbrl_{ticker}')
         xbrl_logger.info('______{ticker}_XBRL_download______')
 
+        shutil.rmtree(f"{self.data_root_path}", ignore_errors=True, onerror=None)  #remove for the purposes of the local version
+
+        if update_only:
+            download_statement_files(bucket_name, data_path, "xbrl",ticker,xbrl_logger)
+        else:
+            delete_statement_files(bucket_name, data_path, "xbrl",ticker,xbrl_logger)
+
         self.get_filings(xbrl_logger)
 
+        upload_statement_files(bucket_name, data_path,"xbrl",ticker,xbrl_logger)
+        
+        shutil.rmtree(f"{self.data_root_path}", ignore_errors=True, onerror=None)  #remove for the purposes of the local version
+        
         time_taken = f"Total time: {time.time() - overall_start_time}"
         xbrl_logger.info(f"Download count: {self.download_count}")
         xbrl_logger.info(time_taken)

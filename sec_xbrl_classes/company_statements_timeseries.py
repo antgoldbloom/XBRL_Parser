@@ -11,7 +11,7 @@ from time import time
 
 from collections import OrderedDict 
 
-from utils import setup_logging 
+from utils import setup_logging,upload_statement_files, download_statement_files, delete_statement_files
 
 import string
 from sklearn.metrics.pairwise import cosine_similarity
@@ -20,27 +20,33 @@ from sklearn.feature_extraction.text import CountVectorizer
 class CompanyStatementTimeseries:
 
 
-    def __init__(self,ticker,data_path,overall_logger,update_only=True,statement=None):
+    def __init__(self,ticker,data_path,overall_logger,bucket_name,update_only=True,statement=None):
 
         overall_start_time = time()
         #initialize key variables
         self.ticker = ticker 
-        self.csv_path = f"{data_path}csv/{ticker}/"
+        self.data_root_path = f"{data_path}data/{ticker}/"
+        self.csv_path = f"{self.data_root_path}csv/"
         self.log_path = f"{data_path}logs/{ticker}/{overall_logger.name[6:]}/"
-        self.timeseries_path = f"{data_path}timeseries/"
-        self.latest_statement_date_type()
+        self.timeseries_path = f"{self.data_root_path}timeseries/"
         self.freq_list = ['instant','qtd','6mtd','9mtd','ytd']
-
-
         
         #configure logging
         timeseries_logger = setup_logging(self.log_path,'timeseries.log',f'timeseries_{ticker}')
         timeseries_logger.info(f'_____{ticker}_TIMESERIES_____')
 
-        #delete directory is we're doing a completely fresh pull
-        if update_only==False:
-            shutil.rmtree(f"{self.timeseries_path}{ticker}", ignore_errors=True, onerror=None)  #remove if exists 
-            Path(f"{self.timeseries_path}{ticker}").mkdir(parents=True, exist_ok=True)
+        shutil.rmtree(f"{self.data_root_path}", ignore_errors=True, onerror=None)  #remove if exists 
+
+        if update_only:
+            download_statement_files(bucket_name, data_path, "timeseries",ticker,timeseries_logger)
+        else:
+            delete_statement_files(bucket_name, data_path, "timeseries",ticker,timeseries_logger)
+
+        download_statement_files(bucket_name, data_path, "csv",ticker,timeseries_logger)        
+
+        self.latest_statement_date_type()
+
+        Path(f"{self.timeseries_path}").mkdir(parents=True, exist_ok=True)
 
         
         if statement is None: #loop through each statement
@@ -77,7 +83,7 @@ class CompanyStatementTimeseries:
         statement_full_path = os.path.join(statement_folder,statement_name)
         needs_update = True 
         if os.path.exists(statement_full_path):
-            timeseries_df_current = pd.read_csv(statement_full_path,index_col=[0])
+            timeseries_df_current = pd.read_csv(statement_full_path,index_col=[0,1])
             latest_date_from_csv_statement = max(self.date_columns_from_statement(statement_dict[list_statement_dates[0]].columns))
             if latest_date_from_csv_statement == timeseries_df_current.columns.max(): 
                 needs_update = False
@@ -391,7 +397,7 @@ class CompanyStatementTimeseries:
             if timeseries_logger is not None:
                 timeseries_logger(f'Statement type could not be infered for {statement}')
 
-        return [f"{self.timeseries_path}{self.ticker}/{statement_folder}/",statement_name]
+        return [f"{self.timeseries_path}{statement_folder}/",statement_name]
 
     def save_file(self,statement,timeseries_df,timeseries_logger):
 

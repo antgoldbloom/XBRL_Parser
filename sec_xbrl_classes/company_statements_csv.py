@@ -8,8 +8,7 @@ import glob
 from time import time
 
 
-from utils import setup_logging 
-
+from utils import setup_logging,upload_statement_files, download_statement_files, delete_statement_files
 
 from datetime import datetime
 import shutil
@@ -17,23 +16,29 @@ import shutil
 
 class CompanyStatementCSV:
 
-    def __init__(self,ticker,data_path,overall_logger,update_only=True,document_end_date=None):
+    def __init__(self,ticker,data_path,overall_logger,bucket_name,update_only=True,document_end_date=None):
 
 
         ### initialize variables
         self.ticker = ticker 
-        self.json_path = f'{data_path}json/'
-        self.csv_path = f'{data_path}csv/{ticker}/'
+        self.data_root_path = f"{data_path}data/{ticker}/"
+        self.json_path = f'{self.data_root_path}json/'
+        self.csv_path = f'{self.data_root_path}csv/'
         self.log_path = f'{data_path}logs/{ticker}/{overall_logger.name[6:]}/'
         self.freq_list = ['instant','qtd','6mtd','9mtd','ytd']
-
-        #if not update only clear csv path
-        if update_only == False:
-            shutil.rmtree(f"{self.csv_path}", ignore_errors=True, onerror=None)  #remove if exists 
 
         #initialize logging
         csv_logger = setup_logging(self.log_path,'csv.log',f'csv_{ticker}')
         csv_logger.info(f'______{ticker}_CSV______')
+
+        shutil.rmtree(f"{self.data_root_path}", ignore_errors=True, onerror=None)  #remove for the purposes of the local version
+
+        if update_only:
+            download_statement_files(bucket_name, data_path, "csv",ticker,csv_logger)
+        else:
+            delete_statement_files(bucket_name, data_path, "csv",ticker,csv_logger)
+
+        download_statement_files(bucket_name, data_path, "json",ticker,csv_logger)
 
         start_time = time()
         self.stock_dict= self.load_json_to_dict()
@@ -47,6 +52,11 @@ class CompanyStatementCSV:
 
         self.date_count = len(os.listdir(self.csv_path)) 
         csv_logger.info(f"Statement Count: {self.date_count}")
+
+        upload_statement_files(bucket_name, data_path,"csv",ticker,csv_logger)
+        
+        shutil.rmtree(f"{self.data_root_path}", ignore_errors=True, onerror=None)  #remove for the purposes of the local version
+        
         ticker_time = f"{time() - start_time}"
         csv_logger.info(f"Total time: {ticker_time}")
 
@@ -242,7 +252,7 @@ class CompanyStatementCSV:
         except KeyError: 
             csv_logger.error(f"'statement_name' not found in self.stock_dict for {document_end_date} -> {statement}")
         else:
-            statement_folder = f"{self.csv_path}/{document_end_date} ({document_type})/"
+            statement_folder = f"{self.csv_path}{document_end_date} ({document_type})/"
             Path(statement_folder).mkdir(parents=True, exist_ok=True)
             statement_name = self.make_filename_safe(statement_name) 
             df_statement.to_csv(f"{statement_folder}{statement_name}.csv")

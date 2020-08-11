@@ -51,7 +51,16 @@ bucket_name = 'kaggle_sec_data'
 zip_function_files(zip_file)
 upload_to_gcs(bucket_name ,gcs_upload_folder,zip_file)
 
-gcloud_command = f"/Users/goldbloom/google-cloud-sdk/bin/gcloud functions deploy create_kaggle_sec_data --entry-point create_company_statement --runtime python37 --trigger-http --timeout 540 --region us-west2 --memory 1024MB --source 'gs://{bucket_name}/{gcs_upload_folder}/{zip_file}'"
+gcloud_command = f"/Users/goldbloom/google-cloud-sdk/bin/gcloud functions deploy download_xbrl --quiet --entry-point download_xbrl --runtime python37 --trigger-http --timeout 540 --region us-west2 --memory 1024MB --source 'gs://{bucket_name}/{gcs_upload_folder}/{zip_file}'"
+stream = os.popen(gcloud_command)
+
+gcloud_command = f"/Users/goldbloom/google-cloud-sdk/bin/gcloud functions deploy create_json --quiet --entry-point create_json --runtime python37 --trigger-http --timeout 540 --region us-west2 --memory 1024MB --source 'gs://{bucket_name}/{gcs_upload_folder}/{zip_file}'"
+stream = os.popen(gcloud_command)
+
+gcloud_command = f"/Users/goldbloom/google-cloud-sdk/bin/gcloud functions deploy create_csv --quiet --entry-point create_json --runtime python37 --trigger-http --timeout 540 --region us-west2 --memory 1024MB --source 'gs://{bucket_name}/{gcs_upload_folder}/{zip_file}'"
+stream = os.popen(gcloud_command)
+
+gcloud_command = f"/Users/goldbloom/google-cloud-sdk/bin/gcloud functions deploy create_timeseries --quiet --entry-point create_timeseries --runtime python37 --trigger-http --timeout 540 --region us-west2 --memory 1024MB --source 'gs://{bucket_name}/{gcs_upload_folder}/{zip_file}'"
 stream = os.popen(gcloud_command)
 
 

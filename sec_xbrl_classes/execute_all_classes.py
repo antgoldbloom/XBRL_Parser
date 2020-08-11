@@ -6,7 +6,7 @@ from company_statements_standardize import CompanyStatementStandardize
 from company_stockrow_reconcilation import CompanyStockrowReconcilation 
 
 
-from utils import setup_logging, upload_statement_files_and_logs 
+from utils import setup_logging 
 
 from time import time
 from datetime import datetime
@@ -70,7 +70,7 @@ def xbrl_to_statement(ticker,data_path,overall_logger,bucket_name,update_only=Tr
                             overall_logger.error('STANDARDIZED: {}. {}, line: {} in {}'.format(sys.exc_info()[0],sys.exc_info()[1],sys.exc_info()[2].tb_lineno,sys.exc_info()[2].tb_lineno))
                         else:
                             try:
-                                upload_statement_files_and_logs(bucket_name,data_path,'timeseries',ticker)
+                                #upload_statement_files_and_logs(bucket_name,data_path,'timeseries',ticker)
                                 company_stockrow = CompanyStockrowReconcilation(ticker,data_path,overall_logger)
                             except:
                                 overall_logger.error('RECONCILE: {}. {}, line: {} in {}'.format(sys.exc_info()[0],sys.exc_info()[1],sys.exc_info()[2].tb_lineno,sys.exc_info()[2].tb_lineno))
