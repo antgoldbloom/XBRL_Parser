@@ -60,7 +60,7 @@ def upload_statement_files(bucket_name, data_path,output_type,ticker,logger):
         logger.error(f"No files uploaded")
 
 
-def download_statement_files(bucket_name, data_path, output_type,ticker,logger): ##UP TO HERE
+def download_statement_files(bucket_name, data_path, output_type,ticker,logger=None): ##UP TO HERE
     """Downloads a blob from the bucket."""
     # bucket_name = "your-bucket-name"
     # source_blob_name = "storage-object-name"
@@ -83,7 +83,8 @@ def download_statement_files(bucket_name, data_path, output_type,ticker,logger):
             blob.download_to_filename(destination__path_and_filename)
             files_downloaded.append(blob.name)
 
-    logger.info(f"Files downloaded: {', '.join(files_downloaded)}")
+    if logger is not None:
+        logger.info(f"Files downloaded: {', '.join(files_downloaded)}")
 
 def delete_statement_files(bucket_name, data_path, output_type,ticker,logger): ##UP TO HERE
     """Deletes a blob from the bucket."""
