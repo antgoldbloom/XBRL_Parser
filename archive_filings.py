@@ -70,25 +70,34 @@ def download_statement_files(storage_client, bucket, data_path,ticker): ##UP TO 
 def create_archive_logger(data_path):
     log_time = datetime.now().strftime('%Y_%m_%d__%H_%M_%S')
     archive_log_name = 'archive_{}.log'.format(log_time)
-    return setup_logging(data_path,archive_log_name,'archive_logger') 
+    return setup_logging(data_path,archive_log_name,'archive_logger'), archive_log_name 
 
 
-bucket_name = 'kaggle-sec-data'
-storage_client = storage.Client()
-bucket = storage_client.bucket(bucket_name)
+def setup_bucket():  
+    bucket_name = 'kaggle-sec-data'
+    storage_client = storage.Client()
+    bucket = storage_client.bucket(bucket_name)
+    return bucket_name, storage_client, bucket
 
 if debug == True:
     data_path = '/Users/goldbloom/Dropbox/Side Projects/Edgar/data/tmp/'
     os.environ["GOOGLE_APPLICATION_CREDENTIALS"]="/Users/goldbloom/Dropbox/Side Projects/Edgar/Key/kaggle-playground-0f760ec0ebcd.json"
+    bucket_name, storage_client, bucket = setup_bucket()
     ticker_list = ['AMZN']
-    archive_logger = create_archive_logger(data_path)
+    archive_logger, archive_log_name = create_archive_logger(data_path)
 else:
     data_path = './'
     os.environ["GOOGLE_APPLICATION_CREDENTIALS"]="./kaggle-playground-0f760ec0ebcd.json"
+    bucket_name, storage_client, bucket = setup_bucket()
+
+    blob = bucket.blob('archive/sec_filing.zip')
+    blob.download_to_filename('{}archive/sec_filing.zip'.format(data_path))
+
     ticker_list = list_gcs_directories(storage_client,bucket,'data/',debug)
     ticker_list = [ticker[5:-1] for ticker in ticker_list]
-    archive_logger = create_archive_logger(data_path)
+    archive_logger, archive_log_name = create_archive_logger(data_path)
     archive_logger.info("{} Tickers in GCS".format(len(ticker_list)))
+
 
 
 zip_path = '{}archive/'.format(data_path) 
@@ -142,20 +151,20 @@ for ticker in no_statement_list:
     archive_logger.warning(ticker)
     
 
-archive_logger.info("{} ticker(s) on GCS; {} with no statements".format(len(ticker_list),len(no_statement_list)))
+archive_logger.info("{} ticker(s) on GCS; {} with statements".format(len(ticker_list),len(ticker_list)-len(no_statement_list)))
+
+if debug == False:
+    archive_blob_name = 'archive/sec_filing.zip'
+    blob = bucket.blob(archive_blob_name)
+    blob.upload_from_filename(zip_path_and_filename)
+
+    log_blob_name = 'archive/logs/{}'.format(archive_log_name)
+    blob = bucket.blob(log_blob_name)
+    blob.upload_from_filename('{}{}'.format(data_path,archive_log_name))
 
 
-archive_blob_name = 'archive/sec_filing.zip'
-blob = bucket.blob(archive_blob_name)
-blob.upload_from_filename(zip_path_and_filename)
-
-log_blob_name = 'archive/logs/{}'.format(archive_log_name)
-blob = bucket.blob(log_blob_name)
-blob.upload_from_filename('{}{}'.format(data_path,archive_log_name))
-
-
-ds_store = '{}.DS_Store'.format(zip_path)
-if os.path.exists(ds_store):
-    os.remove(ds_store)
-cmd=['kaggle', 'datasets', 'version', '-p', zip_path,'-m','Updating'] 
-subprocess.check_call(cmd)
+    ds_store = '{}.DS_Store'.format(zip_path)
+    if os.path.exists(ds_store):
+        os.remove(ds_store)
+    cmd=['kaggle', 'datasets', 'version', '-p', zip_path,'-m','Updating'] 
+    subprocess.check_call(cmd)
