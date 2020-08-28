@@ -57,12 +57,9 @@ os.environ["GOOGLE_APPLICATION_CREDENTIALS"]="/Users/goldbloom/Dropbox/Side Proj
 
 overall_logger = setup_logging(f"{data_path}/logs/__OVERALL__/",f'{log_time}.log',f'error_{log_time}')
 
-for ticker in ['DPZ']: 
+for ticker in ['EMBI']: 
     start_time = time()
     company_json = CompanyStatementsJSON(ticker,data_path,overall_logger,bucket_name,update_only)
-    company_csv = CompanyStatementCSV(ticker,data_path,overall_logger,bucket_name,update_only)
-    company_timeseries = CompanyStatementTimeseries(ticker,data_path,overall_logger,bucket_name,update_only)
-    company_standard = CompanyStatementStandardize(ticker,data_path,overall_logger,bucket_name)
     overall_logger.info(f"______{time()-start_time}______") 
 
 

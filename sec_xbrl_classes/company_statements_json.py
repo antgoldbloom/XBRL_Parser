@@ -194,9 +194,9 @@ class CompanyStatementsJSON:
 
                             if 'endDate' in context_dict[contextref] and dontAdd == False: 
                                 if hasSegment:
-                                    stock_dict_with_ded[statement]['metrics'][tag_name_str]['segment'][segment_name_str] = self.add_duration_metric(stock_dict_with_ded[statement]['metrics'][tag_name_str]['segment'][segment_name_str],context_dict,contextref,tag,tag_name_str,statement,cal_dict)
+                                    stock_dict_with_ded[statement]['metrics'][tag_name_str]['segment'][segment_name_str] = self.add_duration_metric(stock_dict_with_ded[statement]['metrics'][tag_name_str]['segment'][segment_name_str],context_dict,contextref,tag,tag_name_str,statement,cal_dict,json_logger)
                                 else:
-                                    stock_dict_with_ded[statement]['metrics'][tag_name_str] = self.add_duration_metric(stock_dict_with_ded[statement]['metrics'][tag_name_str],context_dict,contextref,tag,tag_name_str,statement,cal_dict)
+                                    stock_dict_with_ded[statement]['metrics'][tag_name_str] = self.add_duration_metric(stock_dict_with_ded[statement]['metrics'][tag_name_str],context_dict,contextref,tag,tag_name_str,statement,cal_dict,json_logger)
 
                             elif 'instant' in context_dict[contextref] and dontAdd == False: #balance sheet item
                                 if hasSegment:
@@ -238,21 +238,27 @@ class CompanyStatementsJSON:
 
         return metric_list
 
-    def add_duration_metric(self,stock_dict_excl_value_and_date,context_dict,contextref,tag,tag_name_str,statement,cal_dict):
+    def add_duration_metric(self,stock_dict_excl_value_and_date,context_dict,contextref,tag,tag_name_str,statement,cal_dict,json_logger):
         enddate = context_dict[contextref]['endDate']
         startdate = context_dict[contextref]['startDate']
 
-        #found most quarterly reports are either 90 or 98 days apart and annual reports are 364 or 365 days apart. Added a small buffer to account for anomalies
-        if (self.days_between(startdate,enddate) > 80) and (self.days_between(startdate,enddate) < 103): #there are some anomalies that need to be handled
-            freq = "qtd" 
-        elif (self.days_between(startdate,enddate) > 177) and (self.days_between(startdate,enddate) < 194): #there are some anomalies that need to be handled
-            freq = "6mtd" 
-        elif (self.days_between(startdate,enddate) > 267) and (self.days_between(startdate,enddate) < 285): #there are some anomalies that need to be handled
-            freq = "9mtd" 
-        elif (self.days_between(startdate,enddate) > 359) and (self.days_between(startdate,enddate) < 376): 
-            freq = 'ytd'
-        else:
+        try:
+            day_diff = self.days_between(startdate,enddate) 
+        except ValueError:
+            json_logger.warning(f"Couldn't get interval between {startdate} and {enddate}")
             freq = 'other'
+        else:
+        #found most quarterly reports are either 90 or 98 days apart and annual reports are 364 or 365 days apart. Added a small buffer to account for anomalies
+            if (day_diff > 80) and (day_diff < 103): #there are some anomalies that need to be handled
+                freq = "qtd" 
+            elif (day_diff > 177) and (day_diff < 194): #there are some anomalies that need to be handled
+                freq = "6mtd" 
+            elif (day_diff > 267) and (day_diff < 285): #there are some anomalies that need to be handled
+                freq = "9mtd" 
+            elif (day_diff > 359) and (day_diff < 376): 
+                freq = 'ytd'
+            else:
+                freq = 'other'
 
         stock_dict_excl_value_and_date = self.add_value_to_metric(stock_dict_excl_value_and_date,tag,enddate,cal_dict,tag_name_str,statement,freq) 
 
