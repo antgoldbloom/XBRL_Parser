@@ -29,7 +29,7 @@ from pathlib import Path
 import random
 import os
 
-from utils import setup_logging,upload_statement_files, download_statement_files, delete_statement_files
+from utils import setup_logging,upload_statement_files, download_statement_files, delete_statement_files,upload_log_file
 
 import shutil
 import zipfile
@@ -54,7 +54,8 @@ class CompanyStatementsXBRL:
         #shutil.rmtree(f"{self.xbrl_path}", ignore_errors=True, onerror=None)  #remove if exists 
 
         xbrl_logger = setup_logging(self.log_path,'download_xbrl.log',f'xbrl_{ticker}')
-        xbrl_logger.info('______{ticker}_XBRL_download______')
+        log_time = datetime.now().strftime('%Y_%m_%d__%H_%M_%S')
+        xbrl_logger.info(f'______{ticker}_XBRL_download___{log_time}_____')
 
         shutil.rmtree(f"{self.data_root_path}", ignore_errors=True, onerror=None)  #remove for the purposes of the local version
 
@@ -72,6 +73,10 @@ class CompanyStatementsXBRL:
         time_taken = f"Total time: {time.time() - overall_start_time}"
         xbrl_logger.info(f"Download count: {self.download_count}")
         xbrl_logger.info(time_taken)
+
+        upload_log_file(bucket_name, self.log_path,ticker,'download_xbrl.log')
+
+
 
 
     def create_http_request(self):

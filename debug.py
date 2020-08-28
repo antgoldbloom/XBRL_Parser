@@ -7,8 +7,6 @@ from datetime import datetime
 from time import time
 import os 
 
-from execute_all_classes import xbrl_to_statement 
-
 from company_statements_xbrl import CompanyStatementsXBRL
 from company_statements_json import CompanyStatementsJSON
 from company_statements_csv import CompanyStatementCSV
@@ -50,20 +48,19 @@ def fetch_ticker_list(list_name='sample_list'):
 data_path="/Users/goldbloom/Dropbox/Side Projects/Edgar/"
 
 ticker_list = fetch_ticker_list('all_tickers')
-update_only = False 
+update_only = True 
 log_time = datetime.now().strftime('%Y_%m_%d__%H_%M_%S')
-bucket_name = 'kaggle_sec_data'
+bucket_name = 'kaggle-sec-data'
 
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"]="/Users/goldbloom/Dropbox/Side Projects/Edgar/Key/kaggle-playground-0f760ec0ebcd.json"
 
 
 overall_logger = setup_logging(f"{data_path}/logs/__OVERALL__/",f'{log_time}.log',f'error_{log_time}')
 
-for ticker in ['ZM']: 
-    overall_logger.info(f'______{ticker}______')
+for ticker in ['MYSZ']: 
     start_time = time()
-    #company_stockrow = CompanyStockrowReconcilation(ticker,data_path,overall_logger)
-    company_xbrl = CompanyStatementsXBRL(ticker,data_path,overall_logger,bucket_name,update_only)
+    company_timeseries = CompanyStatementTimeseries(ticker,data_path,overall_logger,bucket_name,update_only)
+    company_standard = CompanyStatementStandardize(ticker,data_path,overall_logger,bucket_name)
     overall_logger.info(f"______{time()-start_time}______") 
 
 

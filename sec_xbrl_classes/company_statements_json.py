@@ -16,7 +16,7 @@ import shutil
 
 from time import time
 
-from utils import setup_logging,upload_statement_files, download_statement_files, delete_statement_files
+from utils import setup_logging,upload_statement_files, download_statement_files, delete_statement_files,upload_log_file 
 
 import os
 
@@ -40,7 +40,8 @@ class CompanyStatementsJSON:
 
         #initialize logging
         json_logger = setup_logging(self.log_path,'json.log',f'json_{ticker}')
-        json_logger.info(f'_____{ticker}_JSON_____')
+        log_time = datetime.now().strftime('%Y_%m_%d__%H_%M_%S')
+        json_logger.info(f'_____{ticker}_JSON___{log_time}_____')
 
         shutil.rmtree(f"{self.data_root_path}", ignore_errors=True, onerror=None)  #remove for the purposes of the local version
 
@@ -75,6 +76,8 @@ class CompanyStatementsJSON:
         self.date_count = len(stock_dict.keys()) 
         json_logger.info(f"Statement Count: {self.date_count}")
         json_logger.info(f"Total time: {time() - start_time}")
+
+        upload_log_file(bucket_name, self.log_path,ticker,'json.log')
 
     def create_stock_dict(self,stock_dict,json_logger,document_end_date=None):
         if document_end_date is None:

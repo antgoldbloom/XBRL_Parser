@@ -11,7 +11,7 @@ from time import time
 
 from collections import OrderedDict 
 
-from utils import setup_logging,upload_statement_files, download_statement_files, delete_statement_files
+from utils import setup_logging,upload_statement_files, download_statement_files, delete_statement_files,upload_log_file
 
 import string
 from sklearn.metrics.pairwise import cosine_similarity
@@ -33,7 +33,8 @@ class CompanyStatementTimeseries:
         
         #configure logging
         timeseries_logger = setup_logging(self.log_path,'timeseries.log',f'timeseries_{ticker}')
-        timeseries_logger.info(f'_____{ticker}_TIMESERIES_____')
+        log_time = datetime.now().strftime('%Y_%m_%d__%H_%M_%S')
+        timeseries_logger.info(f'_____{ticker}_TIMESERIES___{log_time}_____')
 
         shutil.rmtree(f"{self.data_root_path}", ignore_errors=True, onerror=None)  #remove if exists 
 
@@ -71,13 +72,12 @@ class CompanyStatementTimeseries:
         time_taken = f"Total time: {time() - overall_start_time}"
         timeseries_logger.info(time_taken)
 
+        upload_log_file(bucket_name, self.log_path,ticker,'timeseries.log')
 
 
     def create_statement_time_series(self,statement,timeseries_logger,overall_logger):
         statement_dict = self.load_statements_into_dict(statement,timeseries_logger) 
         list_statement_dates = sorted(list(statement_dict.keys()),reverse=True)
-
-
 
         statement_folder, statement_name = self.statement_file_path_and_name(statement)
         statement_full_path = os.path.join(statement_folder,statement_name)
@@ -196,10 +196,8 @@ class CompanyStatementTimeseries:
         list_10k = []
         needs_adjustment = {}
 
-
         for ds in list_statement_dates:
             
-
             date_cols = self.date_columns_from_statement(statement_dict[ds].columns) 
             tmp_df = statement_dict[ds][date_cols]
 
@@ -272,26 +270,27 @@ class CompanyStatementTimeseries:
         for xbrl_tag in needs_adjustment:
             for date_col in needs_adjustment[xbrl_tag]:
                 months_in_metric = self.period_type_to_months(needs_adjustment[xbrl_tag][date_col])
-                month_index = timeseries_df.columns.get_loc(date_col)
-                tag_index = timeseries_df.index.get_loc(xbrl_tag)
+                if date_col in timeseries_df.columns:
+                    month_index = timeseries_df.columns.get_loc(date_col)
+                    tag_index = timeseries_df.index.get_loc(xbrl_tag)
 
-                i = 1
-                while (months_in_metric > 3):
+                    i = 1
+                    while (months_in_metric > 3):
 
-                    if month_index +i < len(timeseries_df.columns):
-                        if timeseries_df.columns[month_index+i] in needs_adjustment[xbrl_tag]:
-                            months_in_metric = months_in_metric - self.period_type_to_months(needs_adjustment[xbrl_tag][timeseries_df.columns[month_index+i]])
-                        else:
-                            months_in_metric = months_in_metric - 3
+                        if month_index +i < len(timeseries_df.columns):
+                            if timeseries_df.columns[month_index+i] in needs_adjustment[xbrl_tag]:
+                                months_in_metric = months_in_metric - self.period_type_to_months(needs_adjustment[xbrl_tag][timeseries_df.columns[month_index+i]])
+                            else:
+                                months_in_metric = months_in_metric - 3
 
-                        if months_in_metric >= 3:
-                            timeseries_df.iloc[tag_index,month_index] = timeseries_df.iloc[tag_index,month_index] - timeseries_df.iloc[tag_index,month_index+i]
-                        else:
-                            timeseries_logger.error(f"Error adjusting period type for {xbrl_tag} on {date_col}") 
-                        i += 1
-                    else: #not enough history in time series to adjust
-                        timeseries_df.iloc[tag_index,month_index] = None
-                        break
+                            if months_in_metric >= 3:
+                                timeseries_df.iloc[tag_index,month_index] = timeseries_df.iloc[tag_index,month_index] - timeseries_df.iloc[tag_index,month_index+i]
+                            else:
+                                timeseries_logger.error(f"Error adjusting period type for {xbrl_tag} on {date_col}") 
+                            i += 1
+                        else: #not enough history in time series to adjust
+                            timeseries_df.iloc[tag_index,month_index] = None
+                            break
 
 
         return timeseries_df
@@ -390,9 +389,9 @@ class CompanyStatementTimeseries:
         dash_list = [m.start() for m in re.finditer('-', statement)]
         if len(dash_list) >= 2: 
             statement_folder = f'Raw {statement[dash_list[0]+2:dash_list[1]-1]}s'
-            statement_name = statement[dash_list[1]+2:]
+            statement_name = f"{self.ticker} {statement[dash_list[1]+2:].strip()}"
         else:
-            statement_name = statement 
+            statement_name = f"{self.ticker} {statement.strip()}"
             statement_folder = 'Other'
             if timeseries_logger is not None:
                 timeseries_logger(f'Statement type could not be infered for {statement}')

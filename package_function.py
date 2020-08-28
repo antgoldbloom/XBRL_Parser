@@ -47,7 +47,7 @@ def upload_to_gcs(bucket_name,upload_directory,zip_file):
   
 gcs_upload_folder = 'cloud functions' 
 zip_file = 'sec_downloader_functions.zip'
-bucket_name = 'kaggle_sec_data' 
+bucket_name = 'kaggle-sec-data' 
 zip_function_files(zip_file)
 upload_to_gcs(bucket_name ,gcs_upload_folder,zip_file)
 

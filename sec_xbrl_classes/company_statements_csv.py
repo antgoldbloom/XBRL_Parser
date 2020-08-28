@@ -8,7 +8,7 @@ import glob
 from time import time
 
 
-from utils import setup_logging,upload_statement_files, download_statement_files, delete_statement_files
+from utils import setup_logging,upload_statement_files, download_statement_files, delete_statement_files, upload_log_file
 
 from datetime import datetime
 import shutil
@@ -29,7 +29,8 @@ class CompanyStatementCSV:
 
         #initialize logging
         csv_logger = setup_logging(self.log_path,'csv.log',f'csv_{ticker}')
-        csv_logger.info(f'______{ticker}_CSV______')
+        log_time = datetime.now().strftime('%Y_%m_%d__%H_%M_%S')
+        csv_logger.info(f'______{ticker}_CSV___{log_time}______')
 
         shutil.rmtree(f"{self.data_root_path}", ignore_errors=True, onerror=None)  #remove for the purposes of the local version
 
@@ -60,6 +61,7 @@ class CompanyStatementCSV:
         ticker_time = f"{time() - start_time}"
         csv_logger.info(f"Total time: {ticker_time}")
 
+        upload_log_file(bucket_name, self.log_path,ticker,'csv.log')
 
     def process_document(self,document_end_date, csv_logger):
         csv_logger.info(f"__{document_end_date}__")
@@ -239,6 +241,8 @@ class CompanyStatementCSV:
     def make_filename_safe(self,statement_name):
         keepcharacters = (' ','-','_')
         statement_name = "".join(c for c in statement_name if c.isalnum() or c in keepcharacters).rstrip()
+        statement_name = statement_name.strip() #Removing any leading or trailing whitespace 
+
 
         if len(statement_name) > 250:
             statement_name = statement_name[:250]

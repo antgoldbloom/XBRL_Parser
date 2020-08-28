@@ -88,7 +88,7 @@ def initialize_key_params(event):
 
     log_time = datetime.now().strftime('%Y_%m_%d__%H_%M_%S')
     overall_logger = setup_logging(f"{data_path}/logs/__OVERALL__/",f'{log_time}.log',f'error_{log_time}')
-    bucket_name = 'kaggle_sec_data'
+    bucket_name = 'kaggle-sec-data'
 
     ticker = event['attributes']['ticker']
 

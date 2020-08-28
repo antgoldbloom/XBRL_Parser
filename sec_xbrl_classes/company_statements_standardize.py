@@ -54,7 +54,7 @@ class CompanyStatementStandardize:
             df_timeseries = pd.read_csv(f'{self.timeseries_statement_path}{statement_dict[canonical_statement]}',index_col=[0,1]) 
             df_timeseries = self.add_standard_label(df_timeseries,canonical_statement)
             df_timeseries = self.clean_up_report(df_timeseries,standardized_logger,overall_logger)
-            df_timeseries.to_csv(f'{self.canonical_timeseries_statement_path}{canonical_statement}.csv')
+            df_timeseries.to_csv(f'{self.canonical_timeseries_statement_path}{ticker} {canonical_statement}.csv')
 
 
         upload_statement_files(bucket_name, data_path,"timeseries",ticker,standardized_logger)

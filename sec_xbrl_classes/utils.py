@@ -20,6 +20,17 @@ def setup_logging(log_folder,log_file,logger_name):
 
     return logger
 
+def upload_log_file(bucket_name, log_path,ticker,filename):
+    storage_client = storage.Client()
+    bucket = storage_client.bucket(bucket_name)
+
+    destination_log_path_and_file= f'logs/{ticker}/{filename}'
+
+    blob = bucket.blob(destination_log_path_and_file)
+
+    blob.upload_from_filename(f'{log_path}{filename}')
+
+
 def upload_statement_files(bucket_name, data_path,output_type,ticker,logger):
     """Uploads a file to the bucket."""
     # bucket_name = "your-bucket-name"
