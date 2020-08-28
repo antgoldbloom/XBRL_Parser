@@ -201,8 +201,8 @@ class CompanyStatementCSV:
     def stock_list_dict_to_dataframe(self,stock_dict_with_ded,document_end_date,document_type,statement,csv_logger):
 
         stock_list_dict = self.create_stock_dict_list(stock_dict_with_ded,statement,csv_logger) 
-        if statement == 'statementincomestatements':
-            stock_list_dict = self.reorder_list(stock_list_dict)
+        #if statement == 'statementincomestatements':
+        #    stock_list_dict = self.reorder_list(stock_list_dict)
 
         metric_list = []
         for row in stock_list_dict:
@@ -235,7 +235,7 @@ class CompanyStatementCSV:
         if len(df_statement) > 0:
             self.save_statement(df_statement,document_end_date,document_type,statement,csv_logger)
         else: 
-            csv_logger.warning(f"{statement}: had no numeric values and was not saved")
+            csv_logger.warning(f"{statement}: had no quarterly numeric values and was not saved")
 
 
     def make_filename_safe(self,statement_name):

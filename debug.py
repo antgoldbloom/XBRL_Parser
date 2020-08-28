@@ -48,7 +48,7 @@ def fetch_ticker_list(list_name='sample_list'):
 data_path="/Users/goldbloom/Dropbox/Side Projects/Edgar/"
 
 ticker_list = fetch_ticker_list('all_tickers')
-update_only = True 
+update_only = False 
 log_time = datetime.now().strftime('%Y_%m_%d__%H_%M_%S')
 bucket_name = 'kaggle-sec-data'
 
@@ -57,8 +57,10 @@ os.environ["GOOGLE_APPLICATION_CREDENTIALS"]="/Users/goldbloom/Dropbox/Side Proj
 
 overall_logger = setup_logging(f"{data_path}/logs/__OVERALL__/",f'{log_time}.log',f'error_{log_time}')
 
-for ticker in ['MYSZ']: 
+for ticker in ['DPZ']: 
     start_time = time()
+    company_json = CompanyStatementsJSON(ticker,data_path,overall_logger,bucket_name,update_only)
+    company_csv = CompanyStatementCSV(ticker,data_path,overall_logger,bucket_name,update_only)
     company_timeseries = CompanyStatementTimeseries(ticker,data_path,overall_logger,bucket_name,update_only)
     company_standard = CompanyStatementStandardize(ticker,data_path,overall_logger,bucket_name)
     overall_logger.info(f"______{time()-start_time}______") 

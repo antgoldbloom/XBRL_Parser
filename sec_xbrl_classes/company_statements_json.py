@@ -243,7 +243,7 @@ class CompanyStatementsJSON:
         startdate = context_dict[contextref]['startDate']
 
         #found most quarterly reports are either 90 or 98 days apart and annual reports are 364 or 365 days apart. Added a small buffer to account for anomalies
-        if (self.days_between(startdate,enddate) > 85) and (self.days_between(startdate,enddate) < 103): #there are some anomalies that need to be handled
+        if (self.days_between(startdate,enddate) > 80) and (self.days_between(startdate,enddate) < 103): #there are some anomalies that need to be handled
             freq = "qtd" 
         elif (self.days_between(startdate,enddate) > 177) and (self.days_between(startdate,enddate) < 194): #there are some anomalies that need to be handled
             freq = "6mtd" 

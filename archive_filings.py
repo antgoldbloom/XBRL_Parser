@@ -14,7 +14,7 @@ import numpy as np
 
 import logging
 
-debug = False ##REVERT 
+debug = True##REVERT 
 
 
 
@@ -80,7 +80,7 @@ bucket = storage_client.bucket(bucket_name)
 if debug == True:
     data_path = '/Users/goldbloom/Dropbox/Side Projects/Edgar/data/tmp/'
     os.environ["GOOGLE_APPLICATION_CREDENTIALS"]="/Users/goldbloom/Dropbox/Side Projects/Edgar/Key/kaggle-playground-0f760ec0ebcd.json"
-    ticker_list = ['HOFT','NWPP','FSRV','FSRVW','FSRVU','ALUS','ALUS-UN','ALUS-WT','BYOC','CCNCW','CGLO','CHHE','CLRI','CWBR','DCLT','GRST','GSPE','GTEC','GTECW','HLYK','IGCIW','ILAL','INSE','INSU','INSUU','INSUW','INVO','INVOD','IPSI','KAYS','KERN','KERNW','LBTI','LMPX','LSTR','LWEL','MD','MOXC','NGBL','OLBG'] 
+    ticker_list = ['AMZN']
     archive_logger = create_archive_logger(data_path)
 else:
     data_path = './'
