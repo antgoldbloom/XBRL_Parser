@@ -19,4 +19,4 @@ urllib3==1.25.8
 nltk==3.4.5
 scikit-learn
 google-cloud-pubsub
-py7zr
+yahoo_earnings_calendar
