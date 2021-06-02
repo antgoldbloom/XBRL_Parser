@@ -15,7 +15,7 @@ pandas==1.0.1
 path==13.1.0
 pathlib2==2.3.5
 requests==2.22.0
-urllib3==1.25.8
+urllib3==1.26.5
 nltk==3.4.5
 scikit-learn
 google-cloud-pubsub
