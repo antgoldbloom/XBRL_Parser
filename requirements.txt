@@ -10,7 +10,7 @@ googleapis-common-protos==1.52.0
 json5==0.9.1
 jsonschema==3.2.0
 lxml==4.5.0
-numpy==1.18.1
+numpy==1.22.0
 pandas==1.0.1
 path==13.1.0
 pathlib2==2.3.5
